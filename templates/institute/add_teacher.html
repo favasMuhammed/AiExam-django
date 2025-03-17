@@ -1,0 +1,47 @@
+{% extends 'testapp/base.html' %}
+
+{% block title %}Add Teacher - {{ institution.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div class="bg-white shadow-lg rounded-lg p-6 sm:p-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Add a New Teacher</h2>
+        <p class="text-sm text-gray-600 mb-4">Institution: <span class="font-medium">{{ institution.name }}</span></p>
+
+        {% if messages %}
+            <div class="mb-6 space-y-2">
+                {% for message in messages %}
+                    <div class="rounded-md p-4 {% if message.tags == 'error' %}bg-red-50{% elif message.tags == 'warning' %}bg-yellow-50{% else %}bg-green-50{% endif %}">
+                        <p class="text-sm {% if message.tags == 'error' %}text-red-800{% elif message.tags == 'warning' %}text-yellow-800{% else %}text-green-800{% endif %}">{{ message }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post" class="space-y-6" aria-label="Add Teacher Form">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {% for field in form %}
+                    <div {% if field.name == 'classes' or field.name == 'subjects' %}class="sm:col-span-2"{% endif %}>
+                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
+                        <div class="mt-1">
+                            {{ field }}
+                        </div>
+                        {% if field.errors %}
+                            <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="pt-6 flex justify-end space-x-4">
+                <a href="{% url 'institute:dashboard' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Cancel
+                </a>
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Add Teacher
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

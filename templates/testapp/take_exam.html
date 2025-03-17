@@ -1,0 +1,89 @@
+{% extends 'testapp/base.html' %}
+{% load exam_tags %}
+{% block title %}Take Exam - {{ exam.title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Timer -->
+        {% include "testapp/timer.html" with time_in_seconds=time_in_seconds %}
+
+        <!-- Exam Card -->
+        <div class="bg-white shadow-md rounded-xl overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4">
+                <h2 class="text-2xl font-bold text-white">{{ exam.title }}</h2>
+                <p class="mt-1 text-sm text-blue-100">{{ exam.subject }} - {{ exam.classes.first.name }}</p>
+            </div>
+
+            <div class="p-6 space-y-6">
+                {% if exam.instructions %}
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                        <h3 class="text-sm font-medium text-gray-700">Instructions</h3>
+                        <p class="mt-1 text-sm text-gray-600">{{ exam.instructions }}</p>
+                    </div>
+                {% endif %}
+
+                <form method="post" id="examForm" action="{% url 'student:submit_exam' exam_id=exam.id %}" class="space-y-6">
+                    {% csrf_token %}
+                    {% for question in exam.questions.all %}
+                        <div class="border border-gray-200 p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-200" id="question_{{ question.id }}">
+                            <h4 class="text-lg font-medium text-gray-900 mb-2">{{ question.question_text }}</h4>
+                            <textarea name="question_{{ question.id }}" id="answer_{{ question.id }}"
+                                rows="6" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                placeholder="Type your answer here...">{{ answer_dict|get_item:question.id }}</textarea>
+                        </div>
+                    {% empty %}
+                        <div class="text-center p-6 bg-gray-50 rounded-lg">
+                            <p class="text-gray-500">No questions available for this exam.</p>
+                        </div>
+                    {% endfor %}
+
+                    {% if exam.questions.exists %}
+                        <div class="pt-6 border-t border-gray-200 flex justify-end">
+                            <button type="submit" id="submitBtn" class="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                                Submit Exam
+                            </button>
+                        </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const formInputs = document.querySelectorAll('textarea');
+    formInputs.forEach(input => {
+        input.addEventListener('input', debounce(function() {
+            const formData = new FormData();
+            formData.append('question_id', input.name.replace('question_', ''));
+            formData.append('answer_text', input.value);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            fetch("{% url 'teacher:save_answer' %}", {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) console.error('Failed to save answer:', data.error);
+            })
+            .catch(error => console.error('Error saving answer:', error));
+        }, 1000));
+    });
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    document.getElementById('examForm').addEventListener('submit', function() {
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+    });
+</script>
+{% endblock %}

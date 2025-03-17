@@ -1,0 +1,106 @@
+{% extends 'testapp/base.html' %}
+
+{% block title %}Create Exam - AI Exam System{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
+            <!-- Header with Gradient -->
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4 sm:px-8 sm:py-6">
+                <h2 class="text-2xl font-bold text-white">Create a New Exam</h2>
+                <p class="mt-1 text-sm text-blue-100">Set up your exam details below</p>
+            </div>
+
+            <!-- Main Content -->
+            <div class="px-6 py-6 sm:px-8 sm:py-8">
+                {% if messages %}
+                    <div class="mb-6 space-y-3 transition-all duration-300">
+                        {% for message in messages %}
+                            <div class="rounded-lg p-4 shadow-sm {% if message.tags == 'error' %}bg-red-50 border-l-4 border-red-500{% elif message.tags == 'warning' %}bg-yellow-50 border-l-4 border-yellow-500{% else %}bg-green-50 border-l-4 border-green-500{% endif %}">
+                                <p class="text-sm font-medium {% if message.tags == 'error' %}text-red-800{% elif message.tags == 'warning' %}text-yellow-800{% else %}text-green-800{% endif %}">{{ message }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" class="space-y-8" aria-label="Create Exam Form">
+                    {% csrf_token %}
+                    <div class="space-y-8">
+                        <!-- General Fields -->
+                        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            {% for field in form %}
+                                {% if field.name != 'date' and field.name != 'start_time' and field.name != 'duration' %}
+                                    <div class="relative group">
+                                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
+                                        <div class="mt-1">
+                                            {{ field }}
+                                        </div>
+                                        {% if field.help_text %}
+                                            <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                {{ field.help_text }}
+                                            </div>
+                                        {% endif %}
+                                        {% if field.errors %}
+                                            <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+
+                        <!-- Scheduling Section -->
+                        <div class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Scheduling</h3>
+                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                                {% for field in form %}
+                                    {% if field.name == 'date' or field.name == 'start_time' or field.name == 'duration' %}
+                                        <div class="relative group">
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
+                                            <div class="mt-1">
+                                                {{ field }}
+                                            </div>
+                                            {% if field.help_text %}
+                                                <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                    {{ field.help_text }}
+                                                </div>
+                                            {% endif %}
+                                            {% if field.errors %}
+                                                <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="pt-6 flex justify-end space-x-4">
+                        <a href="{% url 'teacher:dashboard' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                            Cancel
+                        </a>
+                        <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                            Create Exam
+                        </button>
+                    </div>
+                </form>
+
+                {% if teacher_profile %}
+                    <p class="mt-6 text-sm text-gray-600">Creating exam for institution: <span class="font-medium text-blue-600">{{ teacher_profile.institution.name }}</span></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<style>
+    input, select, textarea {
+        transition: all 0.2s ease-in-out;
+    }
+    input:focus, select:focus, textarea:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    }
+</style>

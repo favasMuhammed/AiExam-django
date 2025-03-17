@@ -1,0 +1,99 @@
+{% extends 'testapp/base.html' %}
+{% block title %}Exam Results - {{ exam.title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="bg-white shadow-md rounded-xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4">
+                <h2 class="text-2xl font-bold text-white">{{ exam.title }} Results</h2>
+                <p class="mt-1 text-sm text-blue-100">{{ exam.subject }} - {{ exam.classes.all|join:", " }}</p>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+                <div class="p-6 space-y-2">
+                    {% for message in messages %}
+                        <div class="rounded-lg p-4 shadow-sm {% if message.tags == 'error' %}bg-red-50 border-l-4 border-red-500{% else %}bg-green-50 border-l-4 border-green-500{% endif %}">
+                            <p class="text-sm font-medium {% if message.tags == 'error' %}text-red-800{% else %}text-green-800{% endif %}">{{ message }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Exam Statistics -->
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Exam Statistics</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Total Students</p>
+                        <p class="text-xl font-semibold text-gray-900">{{ total_students }}</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Average Score</p>
+                        <p class="text-xl font-semibold text-gray-900">{{ average_score|floatformat:1 }}%</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Completion Rate</p>
+                        <p class="text-xl font-semibold text-gray-900">{{ completion_rate|floatformat:1 }}%</p>
+                    </div>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600">Pending Grading</p>
+                        <p class="text-xl font-semibold text-gray-900">{{ pending_grading }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Your Performance -->
+            <div class="p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Your Performance</h3>
+                <div class="bg-green-50 p-4 rounded-lg mb-6">
+                    <p class="text-sm text-gray-600">Score</p>
+                    <p class="text-2xl font-semibold text-green-800">{{ total_score }} / {{ total_possible }} ({{ percentage|floatformat:1 }}%)</p>
+                </div>
+
+                <div class="space-y-4">
+                    {% for answer in answers %}
+                        <div class="border border-gray-200 p-4 rounded-lg bg-white shadow-sm">
+                            <div class="flex justify-between items-start mb-2">
+                                <h4 class="text-md font-medium text-gray-900">Question {{ answer.question.id }}</h4>
+                                <span class="text-sm font-medium text-gray-600">
+                                    Score: {{ answer.score|default:"Pending" }} / {{ answer.question.marks }}
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-700 mb-2">{{ answer.question.question_text }}</p>
+                            <div class="space-y-2">
+                                <div>
+                                    <h5 class="text-sm font-medium text-gray-700">Your Answer:</h5>
+                                    <p class="text-sm text-gray-600 bg-gray-100 p-2 rounded">{{ answer.answer_text|default:"Not answered" }}</p>
+                                </div>
+                                <div>
+                                    <h5 class="text-sm font-medium text-gray-700">Correct Answer:</h5>
+                                    <p class="text-sm text-gray-600 bg-green-50 p-2 rounded">{{ answer.question.correct_answer }}</p>
+                                </div>
+                                {% if answer.feedback %}
+                                    <div>
+                                        <h5 class="text-sm font-medium text-gray-700">Feedback:</h5>
+                                        <p class="text-sm text-gray-600">{{ answer.feedback }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p class="text-gray-500 text-center p-6">No answers submitted for this exam.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Back Button -->
+            <div class="p-6 border-t border-gray-200 flex justify-end">
+                <a href="{% url 'student:dashboard' %}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

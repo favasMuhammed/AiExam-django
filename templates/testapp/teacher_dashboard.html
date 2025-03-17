@@ -1,0 +1,235 @@
+{% extends 'testapp/base.html' %}
+{% load static %}
+
+{% block title %}Teacher Dashboard - AI Exam System{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white">
+            <h1 class="text-3xl font-bold tracking-tight">Teacher Dashboard</h1>
+            <p class="mt-2 text-sm opacity-90">Manage your exams, classes, and track student performance with ease.</p>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+            <div class="space-y-2">
+                {% for message in messages %}
+                    <div class="p-4 rounded-lg flex items-center {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                        <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            {% if message.tags == 'success' %}
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            {% elif message.tags == 'error' %}
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            {% else %}
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            {% endif %}
+                        </svg>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Statistics Overview -->
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="bg-white shadow-md rounded-lg p-5 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 p-2 bg-blue-100 rounded-full">
+                        <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <dt class="text-sm font-medium text-gray-500">Pending Grading</dt>
+                        <dd class="text-2xl font-semibold text-gray-900">{{ pending_grading }}</dd>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white shadow-md rounded-lg p-5 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 p-2 bg-green-100 rounded-full">
+                        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <dt class="text-sm font-medium text-gray-500">Total Exams</dt>
+                        <dd class="text-2xl font-semibold text-gray-900">{{ total_exams }}</dd>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white shadow-md rounded-lg p-5 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 p-2 bg-purple-100 rounded-full">
+                        <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 1.857h10M12 4a8 8 0 100 16 8 8 0 000-16z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <dt class="text-sm font-medium text-gray-500">Total Students</dt>
+                        <dd class="text-2xl font-semibold text-gray-900">{{ total_students }}</dd>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white shadow-md rounded-lg p-5 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 p-2 bg-yellow-100 rounded-full">
+                        <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <dt class="text-sm font-medium text-gray-500">Active Exams</dt>
+                        <dd class="text-2xl font-semibold text-gray-900">{{ active_exams }}</dd>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Your Classes -->
+        <div class="bg-white shadow-md rounded-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Your Institution’s Classes</h2>
+                <a href="{% url 'teacher:manage_class_students' class_id=0 %}" class="text-blue-600 hover:underline text-sm font-medium">Create New Class</a>
+            </div>
+            {% if classes %}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {% for class_obj in classes %}
+                        <div class="p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-900 font-medium">{{ class_obj.name }}</span>
+                                <span class="text-gray-500 text-sm">({{ class_obj.studentprofile_set.count }} students)</span>
+                            </div>
+                            <div class="mt-2">
+                                <a href="{% url 'teacher:manage_class_students' class_id=class_obj.id %}" class="text-blue-600 hover:underline text-sm">Manage Students</a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-gray-600">No classes found in your institution. Contact an admin or create one above.</p>
+            {% endif %}
+        </div>
+
+        <!-- Assign Students Section -->
+        <div class="bg-white shadow-md rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Assign Students to Class</h2>
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                        <label for="{{ form.class_obj.id_for_label }}" class="block text-sm font-medium text-gray-700">Select Class</label>
+                        {{ form.class_obj }}
+                        {% if form.class_obj.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.class_obj.errors|join:", " }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ form.students.id_for_label }}" class="block text-sm font-medium text-gray-700">Select Students</label>
+                        {{ form.students }}
+                        <p class="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple ({{ form.students.queryset.count }} available)</p>
+                        {% if form.students.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.students.errors|join:", " }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <button type="submit" name="assign_students" class="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                    Assign Students
+                </button>
+            </form>
+        </div>
+
+        <!-- Recent Exams -->
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center cursor-pointer" onclick="toggleSection('exams-section', 'exams-toggle')">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Exams</h3>
+                <div class="flex items-center space-x-4">
+                    <input type="text" id="exam-search" placeholder="Search exams..." class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+                    <a href="{% url 'teacher:create_exam' %}" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                        Create New Exam
+                    </a>
+                    <svg class="h-5 w-5 text-gray-500 transform transition-transform duration-200" id="exams-toggle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+            </div>
+            <div id="exams-section" class="divide-y divide-gray-200">
+                {% for item in recent_exams %}
+                    <div class="p-4 hover:bg-gray-50 transition-colors duration-200 exam-item" data-title="{{ item.exam.title|lower }}">
+                        {% include "testapp/exam_card.html" with exam=item.exam topics=item.topics %}
+                    </div>
+                {% empty %}
+                    <div class="p-6 text-center text-gray-500">No exams created yet. Start by creating one above!</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Exam Statistics -->
+        {% if exam_statistics %}
+            <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                <div class="px-6 py-5 border-b border-gray-200 flex justify-between items-center cursor-pointer" onclick="toggleSection('stats-section', 'stats-toggle')">
+                    <h3 class="text-lg font-semibold text-gray-900">Exam Statistics</h3>
+                    <svg class="h-5 w-5 text-gray-500 transform transition-transform duration-200" id="stats-toggle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+                <div id="stats-section" class="overflow-x-auto hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exam Title</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Highest</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lowest</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for stat in exam_statistics %}
+                                <tr class="hover:bg-gray-50 transition-colors duration-200">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ stat.exam.title }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ stat.total_students }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ stat.average_score|floatformat:1 }}%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ stat.completion_rate|floatformat:1 }}%</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ stat.highest_score }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ stat.lowest_score }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Toggle collapsible sections
+    function toggleSection(sectionId, toggleId) {
+        const section = document.getElementById(sectionId);
+        const toggleIcon = document.getElementById(toggleId);
+        section.classList.toggle('hidden');
+        toggleIcon.classList.toggle('rotate-180');
+    }
+
+    // Exam search filter with debounce
+    let timeout;
+    document.getElementById('exam-search').addEventListener('input', function(e) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            const searchTerm = e.target.value.toLowerCase();
+            const examItems = document.querySelectorAll('.exam-item');
+            examItems.forEach(item => {
+                const title = item.getAttribute('data-title');
+                item.style.display = title.includes(searchTerm) ? 'block' : 'none';
+            });
+        }, 300);
+    });
+
+    // Initialize sections as collapsed
+    document.getElementById('stats-section').classList.add('hidden');
+</script>
+{% endblock %}

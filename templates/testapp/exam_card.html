@@ -1,0 +1,114 @@
+{% load exam_tags %}  <!-- Ensure custom tags are loaded -->
+
+<div class="bg-white rounded-xl shadow-md p-6 mb-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-start space-y-4 sm:space-y-0">
+        <!-- Exam Details -->
+        <div class="space-y-2 w-full sm:w-2/3">
+            <h3 class="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">{{ exam.title }}</h3>
+            <p class="text-gray-600 text-sm">{{ exam.subject.name }} - {{ exam.classes.all|join:", " }}</p>
+            <div class="text-sm text-gray-500 space-y-1">
+                <p>Date: <span class="font-medium">{{ exam.date|date:"M d, Y" }} at {{ exam.start_time|time:"g:i A" }}</span></p>
+                <p>Duration: <span class="font-medium">{{ exam.duration }} minutes</span></p>
+            </div>
+            {% if topics %}
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Topics Covered</h4>
+                    <div class="flex flex-wrap gap-2">
+                        {% for topic in topics %}
+                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors duration-200">
+                                {{ topic }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            {% if user.is_student %}
+                <div class="mt-2 text-sm text-gray-600">
+                    {% if exam.classes.all|intersection:user.student_profile.classes.all %}
+                        <span class="text-green-600">You are enrolled in this exam’s class(es).</span>
+                    {% else %}
+                        <span class="text-red-600">You are not enrolled in this exam’s class(es).</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Actions and Status -->
+        <div class="flex flex-col items-end space-y-3 w-full sm:w-1/3">
+            <!-- Status Badge -->
+            <div class="flex flex-wrap justify-end gap-2">
+                <span class="px-3 py-1 rounded-full text-sm font-medium {% if exam.is_approved %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}" title="Approval Status">
+                    {{ exam.is_approved|yesno:"Approved,Pending" }}
+                </span>
+                <span class="px-3 py-1 rounded-full text-sm font-medium {% if exam.is_active %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}" title="Activity Status">
+                    {{ exam.is_active|yesno:"Active,Inactive" }}
+                </span>
+                {% if exam.is_published %}
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800" title="Results Published">
+                        Published
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col space-y-2 w-full">
+                {% if user.is_teacher %}
+                    <a href="{% url 'teacher:edit_exam' exam_id=exam.id %}" 
+                       class="px-4 py-2 bg-indigo-500 text-white rounded-md text-sm font-medium hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 text-center"
+                       title="Edit exam details or reconduct">
+                        Edit Exam
+                    </a>
+                    {% if not exam.is_approved %}
+                        {% if exam.questions.exists %}
+                        <a href="{% url 'teacher:review_questions' exam_id=exam.id %}" 
+                            class="px-4 py-2 bg-yellow-500 text-white rounded-md text-sm font-medium hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-200 text-center"
+                            title="Review and approve generated questions">
+                            Review Questions
+                        </a>
+                        {% else %}
+                            <a href="{% url 'teacher:generate_questions' exam_id=exam.id %}" 
+                               class="px-4 py-2 bg-emerald-700 border border-black text-black rounded-md text-sm font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 text-center"
+                               title="Generate AI-based questions">
+                                Generate Questions
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    <a href="{% url 'teacher:exam_results' exam_id=exam.id %}" 
+                       class="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 text-center"
+                       title="View and grade student results">
+                        View Results
+                    </a>
+                    {% if exam.classes.exists %}
+                        <a href="{% url 'teacher:manage_class_students' class_id=exam.classes.first.id %}" 
+                        class="px-4 py-2 bg-purple-500 text-white rounded-md text-sm font-medium hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 text-center"
+                        title="Manage students in this exam’s class">
+                            Manage Students ({{ exam.classes.first.studentprofile_set.count }})
+                        </a>
+                    {% else %}
+                        <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md text-sm font-medium cursor-not-allowed" title="No classes assigned">
+                            No Class Assigned
+                        </span>
+                    {% endif %}
+                {% else %}
+                    {% if exam.is_available and exam.is_active and exam.is_approved %}
+                        {% if exam.classes.all|intersection:user.student_profile.classes.all %}
+                            <a href="{% url 'student:take_exam' exam_id=exam.id %}" 
+                               class="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 text-center"
+                               title="Start the exam">
+                                Take Exam
+                            </a>
+                        {% else %}
+                            <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md text-sm font-medium cursor-not-allowed" title="You must be enrolled in a class for this exam">
+                                Not Enrolled
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md text-sm font-medium cursor-not-allowed" title="Exam not available">
+                            Unavailable
+                        </span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,50 @@
+{% extends 'testapp/base.html' %}
+
+{% block title %}Institute Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <h2 class="text-2xl font-bold mb-6">Institute Dashboard - {{ institution.name }}</h2>
+    
+    <!-- Statistics -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div class="bg-white shadow rounded-lg p-5">
+            <h3 class="text-lg font-medium">Teachers</h3>
+            <p class="text-2xl font-bold text-gray-900">{{ teachers.count }}</p>
+        </div>
+        <div class="bg-white shadow rounded-lg p-5">
+            <h3 class="text-lg font-medium">Classes</h3>
+            <p class="text-2xl font-bold text-gray-900">{{ classes.count }}</p>
+        </div>
+        <div class="bg-white shadow rounded-lg p-5">
+            <h3 class="text-lg font-medium">Subjects</h3>
+            <p class="text-2xl font-bold text-gray-900">{{ subjects.count }}</p>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex space-x-4">
+        <a href="{% url 'institute:add_teacher' %}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add Teacher</a>
+        <a href="{% url 'institute:add_class' %}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add Class</a>
+        <a href="{% url 'institute:add_subject' %}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add Subject</a>
+    </div>
+
+    <!-- Teachers List -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Teachers</h3>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {% for teacher in teachers %}
+                <div class="p-4">
+                    <h4 class="text-lg font-medium text-gray-900">{{ teacher.user.email }}</h4>
+                    <p class="text-sm text-gray-500">Classes: {{ teacher.classes.all|join:", " }}</p>
+                    <p class="text-sm text-gray-500">Subjects: {{ teacher.subjects.all|join:", " }}</p>
+                </div>
+            {% empty %}
+                <div class="p-4 text-center text-gray-500">No teachers yet.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

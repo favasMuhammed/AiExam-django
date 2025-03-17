@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}AI Examination System{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .nav-link { transition: color 0.2s; }
+        .nav-link:hover { color: #1f2937; }
+        .btn { transition: background-color 0.2s; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between">
+                <div class="flex space-x-7">
+                    <a href="{% url 'root' %}" class="py-4 px-2 text-gray-600 nav-link">Dashboard</a>
+                    {% if user.is_authenticated %}
+                        {% if user.is_teacher %}
+                            <a href="{% url 'teacher:create_exam' %}" class="py-4 px-2 text-gray-600 nav-link">Create Exam</a>
+                        {% elif user.is_manager %}
+                            <a href="{% url 'manager:add_institution' %}" class="py-4 px-2 text-gray-600 nav-link">Add Institution</a>
+                        {% elif user.is_institute %}
+                            <a href="{% url 'institute:add_teacher' %}" class="py-4 px-2 text-gray-600 nav-link">Add Teacher</a>
+                        {% endif %}
+                        <form method="post" action="{% url 'users:logout' %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="py-4 px-2 text-gray-600 nav-link hover:text-gray-900">
+                                Logout
+                            </button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'users:login' %}" class="py-4 px-2 text-gray-600 nav-link">Login</a>
+                        <a href="{% url 'users:register' %}" class="py-4 px-2 text-gray-600 nav-link">Register</a>
+                    {% endif %}
+                </div>
+                {% if user.is_authenticated %}
+                    <div class="py-4 px-2 text-gray-600">{{ user.email }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="mb-4 p-4 rounded {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
