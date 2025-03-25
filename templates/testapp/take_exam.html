@@ -1,46 +1,71 @@
 {% extends 'testapp/base.html' %}
-{% load exam_tags %}
+{% load exam_tags static %}
 {% block title %}Take Exam - {{ exam.title }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8" role="main" aria-label="Exam Interface">
     <div class="max-w-4xl mx-auto">
         <!-- Timer -->
         {% include "testapp/timer.html" with time_in_seconds=time_in_seconds %}
 
         <!-- Exam Card -->
-        <div class="bg-white shadow-md rounded-xl overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4">
-                <h2 class="text-2xl font-bold text-white">{{ exam.title }}</h2>
-                <p class="mt-1 text-sm text-blue-100">{{ exam.subject }} - {{ exam.classes.first.name }}</p>
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl" data-testid="exam-card">
+            <div class="bg-gradient-to-r from-indigo-600 to-blue-500 px-6 py-4 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-semibold text-white" data-testid="exam-title">{{ exam.title }}</h2>
+                    <p class="mt-1 text-sm text-indigo-100" data-testid="exam-details">{{ exam.subject }} - {{ exam.classes.first.name|default:"No Class" }}</p>
+                </div>
+                <div class="text-white text-sm flex items-center space-x-3" aria-live="polite">
+                    <span id="progress-text" class="font-medium">Progress: <span data-testid="progress-count">{{ answer_dict|length }}</span> / <span data-testid="total-questions">{{ questions|length }}</span></span>
+                    <div class="w-32 bg-indigo-200 rounded-full h-3">
+                        <div id="progress-bar" class="bg-indigo-700 h-3 rounded-full transition-all duration-500 ease-in-out" style="width: {{ progress_percentage|floatformat:2 }}%" role="progressbar" aria-valuenow="{{ progress_percentage|floatformat:2 }}" aria-valuemin="0" aria-valuemax="100" aria-label="Exam Progress"></div>
+                    </div>
+                </div>
             </div>
 
-            <div class="p-6 space-y-6">
+            <div class="p-6 space-y-8">
                 {% if exam.instructions %}
-                    <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
-                        <h3 class="text-sm font-medium text-gray-700">Instructions</h3>
-                        <p class="mt-1 text-sm text-gray-600">{{ exam.instructions }}</p>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-sm" role="region" aria-labelledby="instructions-heading">
+                        <h3 id="instructions-heading" class="text-base font-semibold text-gray-800">Instructions</h3>
+                        <p class="mt-2 text-sm text-gray-600 leading-relaxed">{{ exam.instructions|linebreaks }}</p>
                     </div>
                 {% endif %}
 
-                <form method="post" id="examForm" action="{% url 'student:submit_exam' exam_id=exam.id %}" class="space-y-6">
+                <form method="post" id="exam-form" action="{% url 'student:submit_exam' exam_id=exam.id %}" class="space-y-8" novalidate>
                     {% csrf_token %}
-                    {% for question in exam.questions.all %}
-                        <div class="border border-gray-200 p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-200" id="question_{{ question.id }}">
-                            <h4 class="text-lg font-medium text-gray-900 mb-2">{{ question.question_text }}</h4>
-                            <textarea name="question_{{ question.id }}" id="answer_{{ question.id }}"
-                                rows="6" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                placeholder="Type your answer here...">{{ answer_dict|get_item:question.id }}</textarea>
-                        </div>
-                    {% empty %}
-                        <div class="text-center p-6 bg-gray-50 rounded-lg">
-                            <p class="text-gray-500">No questions available for this exam.</p>
-                        </div>
-                    {% endfor %}
+                    <input type="hidden" name="attempt_uuid" value="{{ attempt_uuid }}">
+                    <input type="hidden" name="time_expired" id="time-expired" value="false">
 
-                    {% if exam.questions.exists %}
-                        <div class="pt-6 border-t border-gray-200 flex justify-end">
-                            <button type="submit" id="submitBtn" class="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
+                    {% if questions %}
+                        {% for question in questions %}
+                            <div class="border border-gray-200 p-5 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-300" id="question-{{ question.id }}" role="region" aria-labelledby="question-{{ question.id }}-heading">
+                                <h4 id="question-{{ question.id }}-heading" class="text-lg font-semibold text-gray-900 mb-3 flex items-center justify-between">
+                                    <span>Question {{ question.order }} ({{ question.question_type|title }})</span>
+                                    <span class="text-sm text-gray-600">{{ question.marks }} marks</span>
+                                </h4>
+                                <p class="text-base text-gray-800 mb-4 leading-relaxed" data-testid="question-text">{{ question.question_text|safe }}</p>
+                                <textarea name="question_{{ question.id }}" id="answer-{{ question.id }}"
+                                    rows="5" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 resize-y text-gray-700 placeholder-gray-400"
+                                    placeholder="Type your answer here..." maxlength="5000" aria-label="Answer for Question {{ question.order }}"
+                                >{{ answer_dict|get_item:question.id|default:"" }}</textarea>
+                                <div class="flex justify-between items-center mt-2">
+                                    <p class="text-sm text-green-600 hidden" id="saved-{{ question.id }}" role="status">Saved</p>
+                                    <p class="text-sm text-gray-500" id="saving-{{ question.id }}" role="status" hidden>Saving...</p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center p-8 bg-gray-50 rounded-lg shadow-inner" role="alert">
+                            <p class="text-gray-600 text-lg">No questions available for this exam.</p>
+                        </div>
+                    {% endif %}
+
+                    {% if questions %}
+                        <div class="pt-6 border-t border-gray-200 flex justify-between items-center">
+                            <button type="button" id="fullscreen-btn" class="py-2 px-4 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:ring-2 focus:ring-gray-400 transition-all duration-200" aria-label="Toggle Fullscreen Mode">
+                                Full Screen
+                            </button>
+                            <button type="submit" id="submit-btn" class="py-2 px-6 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200" aria-label="Submit Exam">
                                 Submit Exam
                             </button>
                         </div>
@@ -50,40 +75,402 @@
         </div>
     </div>
 </div>
-
+<script src="{% static 'js/debounce.js' %}"></script>
 <script>
+// Enhanced Debounce Function (if not already in debounce.js)
+const debounce = (func, wait, immediate = false) => {
+    let timeout;
+    return function (...args) {
+        const context = this;
+        const later = () => {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        const callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+};
+
+// Centralized malpractice logging
+async function logMalpractice(type, message) {
+    try {
+        const response = await fetch('/student/log_malpractice/', {
+            method: 'POST',
+            headers: { 
+                'X-CSRFToken': '{{ csrf_token }}', 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({ 
+                exam_id: {{ exam.id }}, 
+                attempt_uuid: '{{ attempt_uuid }}', 
+                type: type,
+                message: message,
+                timestamp: new Date().toISOString()
+            })
+        });
+        if (!response.ok) throw new Error('Failed to log malpractice');
+    } catch (err) {
+        console.error(`Malpractice log failed (${type}):`, err);
+    }
+}
+
+// Anti-cheating measures with real-time tab switch warning
+function enforceSecurity() {
+    let blurCount = localStorage.getItem('blurCount') ? parseInt(localStorage.getItem('blurCount')) : 0;
+    const maxBlurAllowed = 3;
+    let warningShown = localStorage.getItem('warningShown') === 'true'; // Track if warning has been shown
+
+    const handleBlur = () => {
+        if (warningShown) return; // Skip if warning has already been shown
+
+        blurCount++;
+        localStorage.setItem('blurCount', blurCount);
+        if (blurCount > maxBlurAllowed && !warningShown) {
+            logMalpractice('tab_switch', `Tab switch #${blurCount} (max allowed: ${maxBlurAllowed})`);
+            const warningMessage = `Warning: Excessive tab switching detected (${blurCount} switches). This has been logged.`;
+            
+            // Temporarily remove the blur event listener to prevent infinite loop
+            window.removeEventListener('blur', handleBlur);
+            alert(warningMessage);
+            // Re-attach the blur event listener after alert is dismissed
+            window.addEventListener('blur', handleBlur);
+
+            warningShown = true;
+            localStorage.setItem('warningShown', 'true');
+        }
+    };
+
+    document.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        logMalpractice('context_menu', 'Right-click attempted');
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && ['c', 'v', 'x', 'u', 'p', 's'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+            logMalpractice('shortcut', `Ctrl+${e.key} attempted`);
+        }
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+            e.preventDefault();
+            logMalpractice('devtools', 'Attempted to open developer tools');
+        }
+    });
+
+    window.addEventListener('blur', handleBlur);
+
+    window.addEventListener('beforeunload', (e) => {
+        const submitBtn = document.getElementById('submit-btn');
+        if (!submitBtn.disabled && !submitBtn.dataset.submitting) {
+            e.preventDefault();
+            return 'Changes you made may not be saved. Are you sure you want to leave?';
+        } else {
+            // Reset blurCount and warningShown when the exam is submitted
+            localStorage.removeItem('blurCount');
+            localStorage.removeItem('warningShown');
+        }
+    });
+}
+
+// Full-screen management
+function handleFullscreen() {
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    if (!document.fullscreenEnabled) {
+        fullscreenBtn.disabled = true;
+        fullscreenBtn.textContent = 'Fullscreen Not Supported';
+        return;
+    }
+
+    fullscreenBtn.addEventListener('click', () => {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error('Fullscreen failed:', err);
+                logMalpractice('fullscreen_error', 'Failed to enter fullscreen');
+            });
+        }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+        fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Full Screen';
+        if (!document.fullscreenElement) {
+            logMalpractice('fullscreen_exit', 'Exited fullscreen mode');
+        }
+    });
+}
+
+// Auto-save with retry, local storage fallback, and improved notifications
+function setupAutoSave() {
     const formInputs = document.querySelectorAll('textarea');
+    const savePromises = new Map();
+    const maxRetries = 3; // Number of retries before giving up
+    const retryDelay = 5000; // Delay between retries (5 seconds)
+    let failedAttempts = 0; // Track consecutive failed attempts
+    let notificationShown = false; // Track if notification is already shown
+
+    // Function to show a non-blocking notification
+    function showNotification(message, type = 'error') {
+        if (notificationShown) return; // Avoid spamming notifications
+        notificationShown = true;
+
+        const notificationDiv = document.createElement('div');
+        notificationDiv.id = 'auto-save-notification';
+        notificationDiv.className = `fixed top-0 left-0 w-full ${type === 'error' ? 'bg-yellow-600' : 'bg-green-600'} text-white p-4 text-center z-50`;
+        notificationDiv.textContent = message;
+        document.body.appendChild(notificationDiv);
+
+        // Allow the user to dismiss the notification
+        const dismissButton = document.createElement('button');
+        dismissButton.textContent = 'Dismiss';
+        dismissButton.className = `ml-4 ${type === 'error' ? 'bg-yellow-800 hover:bg-yellow-900' : 'bg-green-800 hover:bg-green-900'} text-white px-2 py-1 rounded`;
+        dismissButton.onclick = () => {
+            notificationDiv.remove();
+            notificationShown = false;
+        };
+        notificationDiv.appendChild(dismissButton);
+    }
+
+    // Function to save answers to localStorage
+    function saveToLocalStorage() {
+        const answerData = {};
+        formInputs.forEach(input => {
+            const questionId = input.id.replace('answer-', '');
+            answerData[`answer_${questionId}`] = input.value;
+        });
+        localStorage.setItem(`exam_${ {{ exam.id }} }_answers`, JSON.stringify(answerData));
+    }
+
+    // Function to load answers from localStorage
+    function loadFromLocalStorage() {
+        const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
+        if (savedData) {
+            const answerData = JSON.parse(savedData);
+            formInputs.forEach(input => {
+                const questionId = input.id.replace('answer-', '');
+                const answerKey = `answer_${questionId}`;
+                if (answerData[answerKey]) {
+                    input.value = answerData[answerKey];
+                }
+            });
+        }
+    }
+
+    // Function to sync localStorage with server
+    async function syncLocalStorage() {
+        const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
+        if (!savedData) return;
+
+        const answerData = JSON.parse(savedData);
+        for (const [answerKey, answerText] of Object.entries(answerData)) {
+            const questionId = answerKey.replace('answer_', '');
+            const formData = new FormData();
+            formData.append('question_id', questionId);
+            formData.append('answer_text', answerText);
+            formData.append('attempt_uuid', '{{ attempt_uuid }}');
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            let attempt = 0;
+            while (attempt <= maxRetries) {
+                try {
+                    const response = await fetch("{% url 'student:save_answer' %}", {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    if (!data.success) throw new Error(data.error || 'Failed to save answers');
+                    failedAttempts = 0; // Reset failed attempts
+                    break; // Success, exit the loop
+                } catch (err) {
+                    attempt++;
+                    if (attempt > maxRetries) {
+                        console.error('Sync failed for question', questionId, err);
+                        throw err; // Let the caller handle the error
+                    }
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
+            }
+        }
+
+        // Clear localStorage after successful sync
+        localStorage.removeItem(`exam_${ {{ exam.id }} }_answers`);
+        if (notificationShown) {
+            const notificationDiv = document.getElementById('auto-save-notification');
+            if (notificationDiv) {
+                notificationDiv.textContent = 'Auto-save successful after network recovery.';
+                notificationDiv.className = 'fixed top-0 left-0 w-full bg-green-600 text-white p-4 text-center z-50';
+                setTimeout(() => {
+                    notificationDiv.remove();
+                    notificationShown = false;
+                }, 3000);
+            }
+        }
+    }
+
+    // Load any unsaved answers from localStorage on page load
+    loadFromLocalStorage();
+
     formInputs.forEach(input => {
-        input.addEventListener('input', debounce(function() {
+        const questionId = input.id.replace('answer-', '');
+        const savedIndicator = document.getElementById(`saved-${questionId}`);
+        const savingIndicator = document.getElementById(`saving-${questionId}`);
+
+        input.addEventListener('input', debounce(async () => {
             const formData = new FormData();
             formData.append('question_id', input.name.replace('question_', ''));
             formData.append('answer_text', input.value);
+            formData.append('attempt_uuid', '{{ attempt_uuid }}');
             formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
 
-            fetch("{% url 'teacher:save_answer' %}", {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) console.error('Failed to save answer:', data.error);
-            })
-            .catch(error => console.error('Error saving answer:', error));
-        }, 1000));
+            savingIndicator.hidden = false;
+            savedIndicator.hidden = true;
+
+            const saveKey = `question_${questionId}`;
+            if (savePromises.has(saveKey)) await savePromises.get(saveKey);
+
+            const savePromise = (async () => {
+                let attempt = 0;
+                while (attempt <= maxRetries) {
+                    try {
+                        const response = await fetch("{% url 'student:save_answer' %}", {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        if (!data.success) throw new Error(data.error || 'Failed to save answers');
+                        failedAttempts = 0; // Reset failed attempts
+                        savedIndicator.hidden = false;
+                        setTimeout(() => savedIndicator.hidden = true, 2000);
+                        updateProgress();
+                        return;
+                    } catch (err) {
+                        attempt++;
+                        failedAttempts++;
+                        if (attempt > maxRetries) {
+                            console.error('Auto-save failed for question', questionId, err);
+                            saveToLocalStorage(); // Save to localStorage as a fallback
+                            showNotification('Auto-save failed due to a network error. Answers are saved locally and will sync when the network is restored.');
+                            if (failedAttempts >= 3) { // Log malpractice after 3 consecutive failures
+                                logMalpractice('save_error', `Auto-save failed after ${failedAttempts} attempts: ${err.message}`);
+                            }
+                            return;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    }
+                }
+            })()
+            .finally(() => {
+                savingIndicator.hidden = true;
+                savePromises.delete(saveKey);
+            });
+
+            savePromises.set(saveKey, savePromise);
+        }, 500)); // Reduced delay for better responsiveness
     });
 
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
+    // Periodically sync localStorage with server
+    const syncInterval = setInterval(async () => {
+        if (localStorage.getItem(`exam_${ {{ exam.id }} }_answers`)) {
+            try {
+                await syncLocalStorage();
+            } catch (err) {
+                console.error('Periodic sync failed:', err);
+            }
+        }
+    }, 60000); // Try to sync every 60 seconds
 
-    document.getElementById('examForm').addEventListener('submit', function() {
-        const submitBtn = document.getElementById('submitBtn');
+    // Clean up on exam submission
+    window.addEventListener('beforeunload', () => {
+        clearInterval(syncInterval);
+    });
+}
+
+// Update progress dynamically
+function updateProgress() {
+    const answeredCount = Array.from(document.querySelectorAll('textarea')).filter(textarea => textarea.value.trim() !== '').length;
+    const totalQuestions = {{ questions|length }};
+    const progressText = document.getElementById('progress-text');
+    const progressBar = document.getElementById('progress-bar');
+    const percentage = totalQuestions ? (answeredCount / totalQuestions * 100) : 0;
+
+    progressText.querySelector('[data-testid="progress-count"]').textContent = answeredCount;
+    progressText.querySelector('[data-testid="total-questions"]').textContent = totalQuestions;
+    progressBar.style.width = `${percentage}%`;
+    progressBar.setAttribute('aria-valuenow', percentage.toFixed(2));
+}
+
+// Smooth form submission
+function handleSubmit() {
+    const examForm = document.getElementById('exam-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const formContainer = examForm.parentElement;
+
+    examForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (!confirm('Are you sure you want to submit your exam? This action cannot be undone.')) {
+            return;
+        }
+
+        // Add loading state
+        formContainer.classList.add('opacity-50', 'pointer-events-none');
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
+        submitBtn.dataset.submitting = 'true';
+
+        const timeRemaining = document.getElementById('timer-display')?.textContent || '0:00';
+        document.getElementById('time-expired').value = (parseInt(timeRemaining.split(':').reduce((acc, t) => 60 * acc + +t, 0)) <= 0).toString();
+
+        const savePromises = Array.from(document.querySelectorAll('textarea')).map(input => {
+            const event = new Event('input');
+            input.dispatchEvent(event);
+            return Promise.resolve();
+        });
+        await Promise.all(savePromises);
+
+        examForm.submit();
     });
+}
+
+// Timer enforcement with submission
+function enforceTimer() {
+    const timerDisplay = document.getElementById('timer-display');
+    if (!timerDisplay) {
+        console.error('Timer display not found. Automatic submission disabled.');
+        return;
+    }
+
+    const interval = setInterval(async () => {
+        const timeParts = timerDisplay.textContent.split(':');
+        const totalSeconds = timeParts.reduce((acc, t) => 60 * acc + +t, 0);
+        if (totalSeconds <= 0) {
+            document.getElementById('time-expired').value = 'true';
+            const submitBtn = document.getElementById('submit-btn');
+            if (!submitBtn.disabled) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting...';
+                submitBtn.dataset.submitting = 'true';
+                await Promise.all(Array.from(document.querySelectorAll('textarea')).map(input => {
+                    const event = new Event('input');
+                    input.dispatchEvent(event);
+                    return Promise.resolve();
+                }));
+                document.getElementById('exam-form').submit();
+            }
+            clearInterval(interval);
+        }
+    }, 1000);
+}
+
+// Initialize on page load
+enforceSecurity();
+handleFullscreen();
+setupAutoSave();
+handleSubmit();
+enforceTimer();
+updateProgress();
 </script>
 {% endblock %}

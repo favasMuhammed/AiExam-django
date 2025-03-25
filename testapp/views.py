@@ -136,46 +136,6 @@ def create_exam(request):
     
     return render(request, 'testapp/create_exam.html', {'form': form})
 
-# @login_required
-# def generate_questions(request, exam_id):
-#     exam = get_object_or_404(Exam, id=exam_id)
-#     if not request.user.is_teacher or exam.created_by != request.user:
-#         messages.error(request, "Access denied.")
-#         return redirect('testapp:dashboard')
-    
-#     if request.method == 'POST':
-#         try:
-#             with transaction.atomic():
-#                 exam.questions.all().delete()
-#                 marks_per_question = exam.total_marks // exam.num_questions
-#                 remaining_marks = exam.total_marks % exam.num_questions
-#                 topics = [t.strip() for t in exam.topics.split(',')]
-                
-#                 for i in range(exam.num_questions):
-#                     marks = marks_per_question + (1 if i < remaining_marks else 0)
-#                     topic = topics[i % len(topics)]
-#                     try:
-#                         question_text = generate_ai_question(topic, exam.difficulty_level, i + 1)
-#                         correct_answer = generate_ai_answer(topic, exam.difficulty_level)
-#                     except requests.exceptions.RequestException as e:
-#                         logger.warning(f"Gemini API error: {str(e)}. Using fallback.")
-#                         question_text = f"Question {i+1}: Explain {topic} in detail."
-#                         correct_answer = f"Answer: Detailed explanation of {topic} including key concepts and examples."
-                    
-#                     Question.objects.create(
-#                         exam=exam,
-#                         question_text=question_text,
-#                         correct_answer=correct_answer,
-#                         marks=marks,
-#                         explanation=f"Generated explanation for {topic}"
-#                     )
-#                 messages.success(request, "Questions generated successfully!")
-#                 return redirect('testapp:review_exam', exam_id=exam.id)
-#         except Exception as e:
-#             logger.error(f"Error generating questions: {str(e)}")
-#             messages.error(request, f"Error generating questions: {str(e)}")
-#     return render(request, 'testapp/generate_questions.html', {'exam': exam, 'topics': exam.topics.split(',')})
-
 
 def generate_ai_question(topic, difficulty, number):
     """Generate a question using Google Gemini API."""

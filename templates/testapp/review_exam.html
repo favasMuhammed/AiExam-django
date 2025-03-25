@@ -1,58 +1,330 @@
 {% extends 'testapp/base.html' %}
+{% load static humanize %}
 
 {% block title %}Review Exam - {{ exam.title }}{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-7xl mx-auto space-y-8">
-        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white">
-            <h2 class="text-2xl font-bold tracking-tight">Review Exam: {{ exam.title }}</h2>
-            <p class="mt-1 text-sm opacity-90">Grade student answers and publish results.</p>
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-bold tracking-tight">Review Exam: {{ exam.title }}</h2>
+                <p class="mt-1 text-sm opacity-90">Grade answers, analyze malpractices, and publish results.</p>
+            </div>
+            <div class="flex space-x-4 items-center">
+                <span class="text-sm font-medium">Submissions: {{ stats.submission_count }}</span>
+                <span class="text-sm font-medium">Avg Score: {{ stats.avg_score }}</span>
+                <span class="text-sm font-medium">Total Malpractices: {{ stats.malpractice_total }}</span>
+                <form method="post" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="export_csv">
+                    <button type="submit" class="bg-white text-blue-600 px-4 py-1 rounded-md hover:bg-gray-100">Export CSV</button>
+                </form>
+            </div>
         </div>
 
+        <!-- Messages -->
         {% if messages %}
             {% for message in messages %}
-                <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-yellow-100 text-yellow-800{% endif %}" role="alert">
                     {{ message }}
                 </div>
             {% endfor %}
         {% endif %}
 
+        <!-- All Malpractice Logs Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">All Malpractice Logs ({{ all_malpractices|length }})</h3>
+            {% if all_malpractices %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-gray-700">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="p-2 text-left">Student</th>
+                                <th class="p-2 text-left">Attempt UUID</th>
+                                <th class="p-2 text-left">Type</th>
+                                <th class="p-2 text-left">Message</th>
+                                <th class="p-2 text-left">Timestamp</th>
+                                <th class="p-2 text-left">Severity</th>
+                                <th class="p-2 text-left">IP Address</th>
+                                <th class="p-2 text-left">Reviewed</th>
+                                <th class="p-2 text-left">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for malpractice in all_malpractices %}
+                                <tr class="{% if malpractice.severity >= 3 %}bg-red-50{% elif malpractice.severity == 2 %}bg-yellow-50{% endif %}">
+                                    <td class="p-2">{{ malpractice.student.username|default:"Unknown" }}</td>
+                                    <td class="p-2">{{ malpractice.attempt_uuid }}</td>
+                                    <td class="p-2 font-medium {% if malpractice.severity >= 3 %}text-red-600{% elif malpractice.severity == 2 %}text-yellow-600{% else %}text-gray-600{% endif %}">{{ malpractice.get_type_display }}</td>
+                                    <td class="p-2">{{ malpractice.message }}</td>
+                                    <td class="p-2">{{ malpractice.timestamp|date:"H:i:s, d M Y" }}</td>
+                                    <td class="p-2">{{ malpractice.severity_label }} ({{ malpractice.severity }})</td>
+                                    <td class="p-2">{{ malpractice.ip_address|default:"N/A" }}</td>
+                                    <td class="p-2">
+                                        {% if malpractice.is_reviewed %}
+                                            <span class="text-green-600">Yes</span>
+                                        {% else %}
+                                            <span class="text-red-600">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-2">
+                                        {% if not malpractice.is_reviewed %}
+                                            <button type="button" class="text-blue-600 hover:text-blue-800 text-sm" onclick="markReviewed('{{ malpractice.id }}')">Mark as Reviewed</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-gray-500">No malpractices recorded for this exam{% if selected_filter != 'all' %} with the selected filter{% endif %}.</p>
+            {% endif %}
+        </div>
+
+        <!-- No Submissions -->
         {% if not student_answers %}
             <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                <p class="text-gray-500">No student submissions available for review.</p>
+                <p class="text-gray-500 text-lg">No student submissions available for review.</p>
+                <a href="{% url 'teacher:dashboard' %}" class="mt-4 inline-block bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">Back to Dashboard</a>
             </div>
         {% else %}
-            <form method="post" class="space-y-6">
+            <!-- Filters and Stats -->
+            <div class="bg-white p-4 rounded-lg shadow-md flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                <div class="flex space-x-4 items-center">
+                    <label for="malpractice-filter" class="text-sm font-medium text-gray-700">Filter Malpractices:</label>
+                    <select id="malpractice-filter" onchange="updateFilter(this.value)" class="border p-2 rounded-md">
+                        <option value="all" {% if selected_filter == 'all' %}selected{% endif %}>All Types</option>
+                        {% for type in malpractice_types %}
+                            <option value="{{ type }}" {% if selected_filter == type %}selected{% endif %}>{{ type|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="?sort_by=student__username{% if selected_filter != 'all' %}&malpractice_filter={{ selected_filter }}{% endif %}" class="text-blue-600 hover:underline">Sort by Name</a>
+                    <a href="?sort_by=total_score{% if selected_filter != 'all' %}&malpractice_filter={{ selected_filter }}{% endif %}" class="text-blue-600 hover:underline">Sort by Score</a>
+                    <a href="?sort_by=malpractice_count{% if selected_filter != 'all' %}&malpractice_filter={{ selected_filter }}{% endif %}" class="text-blue-600 hover:underline">Sort by Malpractices</a>
+                </div>
+            </div>
+
+            <!-- Review Form -->
+            <form method="post" id="review-form" class="space-y-8">
                 {% csrf_token %}
-                {% for student, answers in student_answers.items %}
+                {% for student, data in student_answers.items %}
                     <div class="bg-white p-6 rounded-lg shadow-md">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">{{ student.username }}'s Answers</h3>
-                        {% for answer in answers %}
-                            <div class="border p-4 rounded-lg mb-4">
-                                <p><strong>Question:</strong> {{ answer.question.question_text }}</p>
-                                <p><strong>Student Answer:</strong> {{ answer.answer_text|default:"Not answered" }}</p>
-                                <p><strong>Correct Answer:</strong> {{ answer.question.correct_answer }}</p>
-                                <div class="mt-2">
-                                    <label class="text-sm font-medium text-gray-700">Score (max {{ answer.question.marks }}):</label>
-                                    <input type="number" name="score_{{ answer.id }}" value="{{ answer.score|default_if_none:'' }}"
-                                           min="0" max="{{ answer.question.marks }}" step="0.1" class="mt-1 border p-2 rounded-md w-24">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">{{ student.username }}'s Submission</h3>
+                            <div class="flex space-x-4 items-center">
+                                <span class="text-sm text-gray-600">Score: <span id="total-score-{{ student.id }}">{{ data.total_score|floatformat:1 }}</span> / {{ data.total_marks }}</span>
+                                <span class="text-sm text-gray-600">Time: {{ data.attempt.time_taken|naturaldelta|default:"N/A" }}</span>
+                                <button type="button" class="text-blue-600 hover:text-blue-800 text-sm" onclick="toggleSection('malpractice-{{ student.id }}')">Malpractices ({{ data.malpractice_count }})</button>
+                            </div>
+                        </div>
+
+                        <!-- Malpractice Details -->
+                        <div id="malpractice-{{ student.id }}" class="hidden bg-gray-100 p-4 rounded-lg mb-4 transition-all duration-300">
+                            <h4 class="text-sm font-semibold text-gray-800 mb-2">Malpractice Attempts ({{ data.malpractices|length }})</h4>
+                            {% if data.malpractices %}
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm text-gray-700">
+                                        <thead class="bg-gray-200">
+                                            <tr>
+                                                <th class="p-2 text-left">Type</th>
+                                                <th class="p-2 text-left">Message</th>
+                                                <th class="p-2 text-left">Timestamp</th>
+                                                <th class="p-2 text-left">Severity</th>
+                                                <th class="p-2 text-left">Reviewed</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for malpractice in data.malpractices %}
+                                                <tr class="{% if malpractice.severity >= 3 %}bg-red-50{% elif malpractice.severity == 2 %}bg-yellow-50{% endif %}">
+                                                    <td class="p-2 font-medium {% if malpractice.severity >= 3 %}text-red-600{% elif malpractice.severity == 2 %}text-yellow-600{% else %}text-gray-600{% endif %}">{{ malpractice.get_type_display }}</td>
+                                                    <td class="p-2">{{ malpractice.message }}</td>
+                                                    <td class="p-2">{{ malpractice.timestamp|date:"H:i:s, d M Y" }}</td>
+                                                    <td class="p-2">{{ malpractice.severity_label }} ({{ malpractice.severity }})</td>
+                                                    <td class="p-2">
+                                                        {% if malpractice.is_reviewed %}
+                                                            <span class="text-green-600">Yes</span>
+                                                        {% else %}
+                                                            <span class="text-red-600">No</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div class="mt-2">
-                                    <label class="text-sm font-medium text-gray-700">Feedback:</label>
-                                    <textarea name="feedback_{{ answer.id }}" rows="2" class="mt-1 w-full border p-2 rounded-md">{{ answer.feedback }}</textarea>
+                            {% else %}
+                                <p class="text-gray-500">No malpractices recorded for this filter.</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Answers -->
+                        {% for answer in data.answers %}
+                            <div class="border p-4 rounded-lg mb-4 bg-gray-50">
+                                <p class="text-lg font-medium text-gray-900 flex justify-between">
+                                    <span>Question {{ answer.question.order }} ({{ answer.question.question_type|title }})</span>
+                                    <span class="text-sm text-gray-600">{{ answer.question.marks }} marks</span>
+                                </p>
+                                <p class="mt-2 text-gray-800"><strong>Question:</strong> {{ answer.question.question_text }}</p>
+                                <p class="mt-2 text-gray-800"><strong>Answer:</strong> {{ answer.answer_text|default:"Not answered" }}</p>
+                                <p class="mt-2 text-gray-800"><strong>Correct Answer:</strong> {{ answer.question.correct_answer }}</p>
+                                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="score-{{ answer.id }}" class="text-sm font-medium text-gray-700">Score (max {{ answer.question.marks }}):</label>
+                                        <input type="number" id="score-{{ answer.id }}" name="score_{{ answer.id }}" value="{{ answer.score|default_if_none:'' }}"
+                                               min="0" max="{{ answer.question.marks }}" step="0.1" data-student="{{ student.id }}"
+                                               class="mt-1 border p-2 rounded-md w-full focus:ring-2 focus:ring-indigo-500" 
+                                               oninput="updateScore('{{ answer.id }}', '{{ student.id }}', {{ answer.question.marks }})" required>
+                                    </div>
+                                    <div>
+                                        <label for="feedback-{{ answer.id }}" class="text-sm font-medium text-gray-700">Feedback:</label>
+                                        <textarea id="feedback-{{ answer.id }}" name="feedback_{{ answer.id }}" rows="2" 
+                                                  class="mt-1 w-full border p-2 rounded-md focus:ring-2 focus:ring-indigo-500" 
+                                                  onblur="updateFeedback('{{ answer.id }}')">{{ answer.feedback }}</textarea>
+                                    </div>
                                 </div>
                             </div>
                         {% endfor %}
                     </div>
                 {% endfor %}
+
+                <!-- Pagination -->
+                <div class="flex justify-between items-center">
+                    <div>
+                        {% if page_obj.has_previous %}
+                            <a href="?page={{ page_obj.previous_page_number }}{% if selected_filter != 'all' %}&malpractice_filter={{ selected_filter }}{% endif %}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}" class="text-blue-600 hover:underline">Previous</a>
+                        {% endif %}
+                    </div>
+                    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    <div>
+                        {% if page_obj.has_next %}
+                            <a href="?page={{ page_obj.next_page_number }}{% if selected_filter != 'all' %}&malpractice_filter={{ selected_filter }}{% endif %}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}" class="text-blue-600 hover:underline">Next</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
                 <div class="flex justify-end space-x-4">
-                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">Save Grades</button>
-                    <button type="submit" name="publish" value="true" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Save & Publish Results</button>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500">Save Grades</button>
+                    <button type="submit" name="publish" value="true" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:ring-2 focus:ring-green-500">Save & Publish Results</button>
                     <a href="{% url 'teacher:dashboard' %}" class="bg-gray-200 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-300">Cancel</a>
                 </div>
             </form>
         {% endif %}
     </div>
 </div>
+
+<script src="{% static 'js/axios.min.js' %}"></script>
+<script>
+    // Toggle section visibility
+    function toggleSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        section.classList.toggle('hidden');
+    }
+
+    // Update filter via URL
+    function updateFilter(value) {
+        const url = new URL(window.location);
+        url.searchParams.set('malpractice_filter', value);
+        window.location.href = url;
+    }
+
+    // Update total score dynamically
+    function updateTotalScore(studentId) {
+        const scores = document.querySelectorAll(`input[name^="score_"][data-student="${studentId}"]`);
+        let total = 0;
+        scores.forEach(input => total += parseFloat(input.value) || 0);
+        const totalElement = document.getElementById(`total-score-${studentId}`);
+        totalElement.textContent = total.toFixed(1);
+        totalElement.classList.toggle('text-red-600', total > parseFloat(totalElement.parentElement.textContent.split('/')[1].trim()));
+    }
+
+    // AJAX update score
+    async function updateScore(answerId, studentId, maxMarks) {
+        const scoreInput = document.getElementById(`score-${answerId}`);
+        const score = scoreInput.value;
+        if (score && (score < 0 || score > maxMarks)) {
+            scoreInput.classList.add('border-red-500');
+            return;
+        }
+        scoreInput.classList.remove('border-red-500');
+
+        try {
+            const response = await axios.post(window.location.pathname, {
+                action: 'ajax_update',
+                answer_id: answerId,
+                score: score,
+                feedback: document.getElementById(`feedback-${answerId}`).value
+            }, {
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            if (response.data.success) {
+                updateTotalScore(studentId);
+            } else {
+                alert(`Error: ${response.data.error}`);
+            }
+        } catch (error) {
+            console.error('AJAX error:', error);
+            alert('Failed to update score.');
+        }
+    }
+
+    // AJAX update feedback
+    async function updateFeedback(answerId) {
+        try {
+            const response = await axios.post(window.location.pathname, {
+                action: 'ajax_update',
+                answer_id: answerId,
+                score: document.getElementById(`score-${answerId}`).value,
+                feedback: document.getElementById(`feedback-${answerId}`).value
+            }, {
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            if (!response.data.success) {
+                alert(`Error: ${response.data.error}`);
+            }
+        } catch (error) {
+            console.error('AJAX error:', error);
+            alert('Failed to update feedback.');
+        }
+    }
+
+    // AJAX mark malpractice as reviewed
+    async function markReviewed(malpracticeId) {
+        try {
+            const response = await axios.post(window.location.pathname, {
+                action: 'mark_reviewed',
+                malpractice_id: malpracticeId
+            }, {
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            if (response.data.success) {
+                const row = document.querySelector(`tr[data-malpractice-id="${malpracticeId}"]`);
+                if (row) {
+                    const reviewedCell = row.querySelector('.reviewed-status');
+                    const actionCell = row.querySelector('.action-cell');
+                    reviewedCell.innerHTML = '<span class="text-green-600">Yes</span>';
+                    actionCell.innerHTML = '';
+                }
+            } else {
+                alert(`Error: ${response.data.error}`);
+            }
+        } catch (error) {
+            console.error('AJAX error:', error);
+            alert('Failed to mark as reviewed.');
+        }
+    }
+
+    // Initialize scores
+    document.addEventListener('DOMContentLoaded', () => {
+        {% for student in student_answers.keys %}
+            updateTotalScore('{{ student.id }}');
+        {% endfor %}
+    });
+
+</script>
 {% endblock %}

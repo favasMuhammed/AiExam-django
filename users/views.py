@@ -1,15 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import login as auth_login, logout, authenticate
 from django.contrib import messages
-from .forms import RegistrationForm
+from .forms import *
 from django.core.mail import send_mail
 from .models import *
-
-from django.shortcuts import render, redirect
-from django.contrib.auth import login as auth_login
-from django.contrib import messages
-from django.core.mail import send_mail
-from .forms import RegistrationForm
 from institute.models import *
 
 

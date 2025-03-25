@@ -1,20 +1,38 @@
 <div class="fixed top-4 right-4 bg-white p-4 rounded-lg shadow-lg" id="examTimer">
     <h3 class="text-lg font-semibold mb-2">Time Remaining</h3>
-    <div class="text-2xl font-bold text-center text-blue-600" id="timerDisplay">Loading...</div>
+    <div class="text-2xl font-bold text-center transition-colors duration-500" id="timerDisplay">Loading...</div>
 </div>
 
 <script>
     let timeLeft = {{ time_in_seconds }};
     const timerDisplay = document.getElementById('timerDisplay');
     const examForm = document.getElementById('examForm');
+    let lastServerSync = timeLeft;
+    let syncInterval, warningInterval;
+
+    function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
 
     function updateTimer() {
-        const hours = Math.floor(timeLeft / 3600);
-        const minutes = Math.floor((timeLeft % 3600) / 60);
-        const seconds = timeLeft % 60;
-        timerDisplay.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        
+        timerDisplay.textContent = formatTime(timeLeft);
+
+        // Visual urgency cues
+        if (timeLeft <= 300) { // 5 minutes
+            timerDisplay.classList.remove('text-yellow-600', 'text-blue-600');
+            timerDisplay.classList.add('text-red-600');
+        } else if (timeLeft <= 600) { // 10 minutes
+            timerDisplay.classList.remove('text-blue-600');
+            timerDisplay.classList.add('text-yellow-600');
+        } else {
+            timerDisplay.classList.add('text-blue-600');
+        }
+
         if (timeLeft <= 0) {
+            clearIntervals();
             if (examForm) {
                 const timeExpiredInput = document.createElement('input');
                 timeExpiredInput.type = 'hidden';
@@ -29,27 +47,63 @@
         }
     }
 
-    function checkTimeWarning() {
+    function showTimeWarning() {
+        const existingWarning = document.querySelector('.time-warning');
+        if (existingWarning) existingWarning.remove();
+
         if (timeLeft === 300) {
             const warningDiv = document.createElement('div');
-            warningDiv.className = 'fixed bottom-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4';
+            warningDiv.className = 'time-warning fixed bottom-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 z-50';
             warningDiv.innerHTML = '<p class="font-bold">Warning:</p><p>5 minutes remaining!</p>';
             document.body.appendChild(warningDiv);
             setTimeout(() => warningDiv.remove(), 10000);
+        } else if (timeLeft === 60) {
+            const criticalDiv = document.createElement('div');
+            criticalDiv.className = 'time-warning fixed bottom-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 z-50';
+            criticalDiv.innerHTML = '<p class="font-bold">Critical:</p><p>1 minute remaining!</p>';
+            document.body.appendChild(criticalDiv);
+            setTimeout(() => criticalDiv.remove(), 30000);
         }
     }
 
-    updateTimer();
-    setInterval(checkTimeWarning, 1000);
+    function syncWithServer() {
+        fetch("{% url 'student:exam_status' exam.id %}", {
+            method: 'GET',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.remaining_time !== undefined && Math.abs(data.remaining_time - timeLeft) > 5) {
+                timeLeft = data.remaining_time;
+                lastServerSync = timeLeft;
+                console.log(`Timer synced with server: ${timeLeft}s remaining`);
+            }
+            if (data.status === 'expired' || data.status === 'completed') {
+                timeLeft = 0;
+                updateTimer();
+            }
+        })
+        .catch(error => console.error('Server sync failed:', error));
+    }
 
-    // Sync with server every 30 seconds
-    setInterval(() => {
-        fetch("{% url 'student:exam_status' exam.id %}")
-            .then(response => response.json())
-            .then(data => {
-                if (data.remaining_time !== undefined) {
-                    timeLeft = data.remaining_time;
-                }
-            });
-    }, 30000);
+    // Prevent manipulation
+    Object.defineProperty(window, 'timeLeft', {
+        get: () => timeLeft,
+        set: () => console.error('Timer manipulation detected!')
+    });
+
+    function clearIntervals() {
+        clearInterval(syncInterval);
+        clearInterval(warningInterval);
+    }
+
+    // Start timer and intervals
+    updateTimer();
+    syncInterval = setInterval(syncWithServer, 10000); // Sync every 10s
+    warningInterval = setInterval(showTimeWarning, 1000);
+
+    // Cleanup on form submission
+    if (examForm) {
+        examForm.addEventListener('submit', clearIntervals);
+    }
 </script>

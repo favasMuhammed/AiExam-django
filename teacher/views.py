@@ -22,7 +22,10 @@ from student.models import *
 from manager.models import *
 from common.utils import auto_grade_answer
 
-grader_model = SentenceTransformer('all-MiniLM-L6-v2')
+import csv
+from io import StringIO
+from django.core.paginator import Paginator
+
 logger = logging.getLogger(__name__)
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
@@ -32,7 +35,9 @@ from django.db.models import Sum, Count
 from teacher.models import Exam, StudentAnswer  # Assuming these are your models
 from institute.models import Institution, Class, TeacherProfile, StudentProfile
 from .forms import ClassStudentForm  # Assuming this exists
-from users.models import User
+from users.models import User 
+from student.models import MalpracticeLog
+
 
 
 @login_required(login_url='users:login')
@@ -179,6 +184,9 @@ def manage_class_students(request, class_id=None):
     }
     return render(request, 'testapp/manage_class_students.html', context)
 
+
+
+
 @login_required(login_url='users:login')
 def create_exam(request):
     if not request.user.is_teacher:
@@ -206,50 +214,65 @@ def create_exam(request):
     form = ExamForm(request.POST or None, user=request.user)
     classes = Class.objects.filter(institution=institution)
 
-    if request.method == 'POST' and form.is_valid():
-        try:
-            with transaction.atomic():
-                exam = form.save(commit=False)
-                exam.created_by = request.user
-                if form.cleaned_data.get('use_template') and form.cleaned_data.get('template'):
-                    template = form.cleaned_data['template']
-                    exam.topics = template.topics
-                    exam.num_questions = template.num_questions
-                    exam.total_marks = template.total_marks
-                    exam.difficulty_level = template.difficulty_level
-                exam.save()
-                form.save_m2m()
+    if request.method == 'POST':
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    exam = form.save(commit=False)
+                    exam.created_by = request.user
+                    if form.cleaned_data.get('use_template') and form.cleaned_data.get('template'):
+                        template = form.cleaned_data['template']
+                        exam.topics = template.topics
+                        exam.num_questions = template.num_questions
+                        exam.total_marks = template.total_marks
+                        exam.difficulty_level = template.difficulty_level
+                    exam.save()
+                    form.save_m2m()
 
-                exam_datetime = timezone.make_aware(datetime.combine(exam.date, exam.start_time))
-                if exam_datetime > timezone.now():
-                    student_emails = User.objects.filter(
-                        is_student=True,
-                        student_profile__classes__in=exam.classes.all()
-                    ).values_list('email', flat=True).distinct()
-                    if student_emails:
-                        try:
-                            send_mail(
-                                subject=f'Upcoming Exam: {exam.title}',
-                                message=f'The exam "{exam.title}" is scheduled for {exam_datetime.strftime("%Y-%m-%d %H:%M")}. Prepare accordingly!',
-                                from_email='admin@aiexam.com',
-                                recipient_list=list(student_emails),
-                                fail_silently=False,
-                            )
-                            exam.scheduled_notification = True
-                            exam.save()
-                            logger.info(f"Sent notification for exam {exam.id} to {len(student_emails)} students")
-                        except Exception as e:
-                            logger.error(f"Notification failed for exam {exam.id}: {str(e)}")
-                            messages.warning(request, f"Exam created, but notification failed: {str(e)}")
-                    else:
-                        messages.warning(request, "Exam created, but no students found in selected classes.")
-                        logger.warning(f"No students found for exam {exam.id}")
+                    # Validate total_marks against question marks after saving
+                    total_question_marks = exam.questions.aggregate(total=models.Sum('marks'))['total'] or 0
+                    if exam.total_marks < total_question_marks:
+                        # Delete the exam to rollback the transaction
+                        exam.delete()
+                        form.add_error(
+                            'total_marks',
+                            f"Total marks ({exam.total_marks}) cannot be less than the sum of question marks ({total_question_marks})."
+                        )
+                        raise ValueError("Total marks validation failed.")
 
-                messages.success(request, "Exam created successfully!")
-                return redirect('teacher:generate_questions', exam_id=exam.id)
-        except Exception as e:
-            messages.error(request, f"Error creating exam: {str(e)}")
-            logger.error(f"Error creating exam: {str(e)}")
+                    exam_datetime = timezone.make_aware(datetime.combine(exam.date, exam.start_time))
+                    if exam_datetime > timezone.now():
+                        student_emails = User.objects.filter(
+                            is_student=True,
+                            student_profile__classes__in=exam.classes.all()
+                        ).values_list('email', flat=True).distinct()
+                        if student_emails:
+                            try:
+                                send_mail(
+                                    subject=f'Upcoming Exam: {exam.title}',
+                                    message=f'The exam "{exam.title}" is scheduled for {exam_datetime.strftime("%Y-%m-%d %H:%M")}. Prepare accordingly!',
+                                    from_email='admin@aiexam.com',
+                                    recipient_list=list(student_emails),
+                                    fail_silently=False,
+                                )
+                                exam.scheduled_notification = True
+                                exam.save()
+                                logger.info(f"Sent notification for exam {exam.id} to {len(student_emails)} students")
+                            except Exception as e:
+                                logger.error(f"Notification failed for exam {exam.id}: {str(e)}")
+                                messages.warning(request, f"Exam created, but notification failed: {str(e)}")
+                        else:
+                            messages.warning(request, "Exam created, but no students found in selected classes.")
+                            logger.warning(f"No students found for exam {exam.id}")
+
+                    messages.success(request, "Exam created successfully!")
+                    return redirect('teacher:generate_questions', exam_id=exam.id)
+            except ValueError as ve:
+                # Handle validation errors related to total_marks
+                messages.error(request, str(ve))
+            except Exception as e:
+                messages.error(request, f"Error creating exam: {str(e)}")
+                logger.error(f"Error creating exam: {str(e)}")
 
     return render(request, 'testapp/create_exam.html', {
         'form': form,
@@ -355,8 +378,10 @@ def generate_questions(request, exam_id):
                 exam.questions.all().delete()
                 marks_per_question = exam.total_marks // exam.num_questions
                 remaining_marks = exam.total_marks % exam.num_questions
-                topics = [t.strip() for t in exam.topics.split(',')]
-                
+                topics = [t.strip() for t in exam.topics.split(',') if t.strip()]
+                if not topics:
+                    raise ValueError("No valid topics provided in exam topics field.")
+
                 for i in range(exam.num_questions):
                     marks = marks_per_question + (1 if i < remaining_marks else 0)
                     topic = topics[i % len(topics)]
@@ -367,10 +392,15 @@ def generate_questions(request, exam_id):
                         question_text=question_text,
                         correct_answer=correct_answer,
                         marks=marks,
-                        explanation="AI-generated explanation pending review"
+                        explanation="AI-generated explanation pending review",
+                        order=i + 1  # Add order field to maintain sequence
                     )
-                messages.success(request, "Questions generated successfully! Please review and approve.")
+                messages.success(request, f"{exam.num_questions} questions generated successfully! Please review and approve.")
+                logger.info(f"Generated {exam.num_questions} questions for exam {exam_id} by {request.user.email}")
                 return redirect('teacher:review_questions', exam_id=exam.id)
+        except ValueError as ve:
+            logger.error(f"Validation error generating questions for exam {exam_id}: {str(ve)}")
+            messages.error(request, f"Validation error: {str(ve)}")
         except Exception as e:
             logger.error(f"Error generating questions for exam {exam_id}: {str(e)}")
             messages.error(request, f"Error generating questions: {str(e)}")
@@ -384,7 +414,7 @@ def review_questions(request, exam_id):
         return redirect('teacher:dashboard')
 
     exam = get_object_or_404(Exam, id=exam_id, created_by=request.user)
-    questions = exam.questions.all()
+    questions = exam.questions.order_by('order').all()
 
     if request.method == 'POST':
         try:
@@ -434,46 +464,174 @@ def review_exam(request, exam_id):
         return redirect('teacher:dashboard')
 
     exam = get_object_or_404(Exam, id=exam_id, created_by=request.user)
-    attempts = ExamAttempt.objects.filter(exam=exam, completed=True).select_related('student')
-    
+    attempts = ExamAttempt.objects.filter(exam=exam, completed=True).select_related('student').prefetch_related('exam__student_answers')
+
     if not attempts:
         messages.info(request, "No student submissions available for review.")
         return redirect('teacher:dashboard')
 
+    # Handle POST actions
     if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'export_csv':
+            return export_review_data(exam, attempts)
+        elif action == 'ajax_update':
+            return ajax_update_grade(request, exam)
+        elif action == 'mark_reviewed':
+            # Handle marking malpractices as reviewed
+            malpractice_id = request.POST.get('malpractice_id')
+            try:
+                malpractice = MalpracticeLog.objects.get(id=malpractice_id, exam=exam)
+                malpractice.is_reviewed = True
+                malpractice.save()
+                return JsonResponse({'success': True})
+            except MalpracticeLog.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Malpractice log not found'}, status=404)
+
         try:
             with transaction.atomic():
                 for attempt in attempts:
-                    for answer in StudentAnswer.objects.filter(exam=exam, student=attempt.student):
-                        score = request.POST.get(f'score_{answer.id}')
-                        feedback = request.POST.get(f'feedback_{answer.id}', '')
-                        if score is not None:  # Only update if score provided
-                            answer.score = float(score)
+                    answers = StudentAnswer.objects.filter(exam=exam, student=attempt.student)
+                    for answer in answers:
+                        score_key = f'score_{answer.id}'
+                        feedback_key = f'feedback_{answer.id}'
+                        score = request.POST.get(score_key)
+                        feedback = request.POST.get(feedback_key, '')
+                        if score is not None:
+                            score = float(score)
+                            if score < 0 or score > answer.question.marks:
+                                raise ValueError(f"Score {score} for Q{answer.question.order} is out of range (0-{answer.question.marks})")
+                            answer.score = score
                             answer.feedback = feedback
                             answer.graded_by = request.user
                             answer.graded_at = timezone.now()
                             answer.save()
-                
+
                 if 'publish' in request.POST:
                     exam.is_published = True
+                    exam.status = 'completed'
                     exam.save()
                     messages.success(request, "Exam results published successfully!")
                     return redirect('teacher:dashboard')
                 messages.success(request, "Grades updated successfully!")
-                return redirect('teacher:review_exam', exam_id=exam.id)
+        except ValueError as e:
+            messages.error(request, f"Invalid score: {e}")
         except Exception as e:
             messages.error(request, f"Error updating grades: {e}")
-            return redirect('teacher:review_exam', exam_id=exam.id)
+        return redirect('teacher:review_exam', exam_id=exam.id)
 
-    student_answers = {
-        attempt.student: StudentAnswer.objects.filter(exam=exam, student=attempt.student).select_related('question')
-        for attempt in attempts
+    # Filters and Sorting
+    malpractice_filter = request.GET.get('malpractice_filter', 'all')
+    sort_by = request.GET.get('sort_by', 'student__username')
+    page = request.GET.get('page', 1)
+
+    # Fetch all malpractice logs for the exam
+    all_malpractices = MalpracticeLog.objects.filter(exam=exam).select_related('student').order_by('timestamp')
+    if malpractice_filter != 'all':
+        all_malpractices = all_malpractices.filter(type=malpractice_filter)
+
+    # Prepare student data
+    student_answers = {}
+    for attempt in attempts:
+        answers = StudentAnswer.objects.filter(exam=exam, student=attempt.student).select_related('question').order_by('question__order')
+        total_marks = attempt.exam.total_marks
+        malpractices = MalpracticeLog.objects.filter(exam_id=exam.id, attempt_uuid=attempt.attempt_uuid).order_by('timestamp')
+        
+        if malpractice_filter != 'all':
+            malpractices = malpractices.filter(type=malpractice_filter)
+        
+        student_answers[attempt.student] = {
+            'answers': answers,
+            'total_marks': total_marks,
+            'malpractices': malpractices,
+            'attempt': attempt,
+            'total_score': sum(a.score or 0 for a in answers),
+            'malpractice_count': malpractices.count(),
+        }
+
+    # Sorting
+    sorted_students = sorted(student_answers.items(), key=lambda x: getattr(x[0], sort_by.split('__')[1]) if '__' in sort_by else x[1][sort_by])
+
+    # Pagination
+    paginator = Paginator(sorted_students, 5)  # 5 students per page
+    page_obj = paginator.get_page(page)
+
+    # Exam statistics
+    stats = {
+        'avg_score': exam.average_score(),
+        'submission_count': exam.total_submissions(),
+        'malpractice_total': MalpracticeLog.objects.filter(exam_id=exam.id).count(),
     }
 
-    return render(request, 'testapp/review_exam.html', {
+    context = {
         'exam': exam,
-        'student_answers': student_answers,
-    })
+        'student_answers': dict(page_obj.object_list),
+        'all_malpractices': all_malpractices,  # Add all malpractice logs to context
+        'malpractice_types': [t[0] for t in MalpracticeLog.MALPRACTICE_TYPES],
+        'selected_filter': malpractice_filter,
+        'sort_by': sort_by,
+        'stats': stats,
+        'page_obj': page_obj,
+    }
+    return render(request, 'testapp/review_exam.html', context)
+
+def ajax_update_grade(request, exam):
+    if request.method != 'POST' or not request.user.is_teacher:
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=403)
+    
+    answer_id = request.POST.get('answer_id')
+    score = request.POST.get('score')
+    feedback = request.POST.get('feedback', '')
+
+    try:
+        answer = StudentAnswer.objects.get(id=answer_id, exam=exam)
+        score = float(score) if score else None
+        if score is not None and (score < 0 or score > answer.question.marks):
+            return JsonResponse({'success': False, 'error': f'Score out of range (0-{answer.question.marks})'})
+        
+        answer.score = score
+        answer.feedback = feedback
+        answer.graded_by = request.user
+        answer.graded_at = timezone.now()
+        answer.save()
+        return JsonResponse({'success': True, 'total_score': sum(a.score or 0 for a in StudentAnswer.objects.filter(exam=exam, student=answer.student))})
+    except StudentAnswer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Answer not found'}, status=404)
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'Invalid score value'})
+
+def export_review_data(exam, attempts):
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="review_{exam.title}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow([
+        'Student', 'Question Order', 'Question Text', 'Answer', 'Correct Answer', 'Score', 'Feedback', 
+        'Malpractices', 'Severity', 'Attempt Started', 'Attempt Completed', 'Time Taken'
+    ])
+    
+    for attempt in attempts:
+        answers = StudentAnswer.objects.filter(exam=exam, student=attempt.student).select_related('question')
+        malpractices = MalpracticeLog.objects.filter(exam_id=exam.id, attempt_uuid=attempt.attempt_uuid)
+        malpractice_summary = "; ".join([f"{m.get_type_display()} ({m.severity}): {m.message}" for m in malpractices])
+        
+        for answer in answers:
+            writer.writerow([
+                attempt.student.username,
+                answer.question.order,
+                answer.question.question_text,
+                answer.answer_text or 'Not answered',
+                answer.question.correct_answer,
+                answer.score if answer.score is not None else '',
+                answer.feedback,
+                malpractice_summary,
+                max(m.severity for m in malpractices) if malpractices else 0,
+                attempt.start_time,
+                attempt.end_time or '',
+                str(attempt.time_taken) if attempt.time_taken else ''
+            ])
+    
+    return response
 
 
 @login_required
@@ -511,6 +669,7 @@ def exam_results(request, exam_id):
             'total_possible': total_possible,
             'percentage': (total_score / total_possible * 100) if total_possible > 0 else 0,
             'graded': all(a.score is not None for a in student_answers),
+            'time_taken': attempt.time_taken,
         }
         students_data.append(student_data)
         logger.info(f"Student {attempt.student.email}: Score {total_score}/{total_possible}, Graded: {student_data['graded']}")

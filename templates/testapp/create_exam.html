@@ -1,6 +1,30 @@
 {% extends 'testapp/base.html' %}
 
+{% load widget_tweaks %}
+
 {% block title %}Create Exam - AI Exam System{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Custom input styles */
+    input, select, textarea {
+        transition: all 0.2s ease-in-out;
+    }
+    input:focus, select:focus, textarea:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    }
+    /* Collapsible section toggle */
+    .collapse-toggle:checked ~ .collapse-content {
+        max-height: 1000px; /* Arbitrary large value for smooth transition */
+    }
+    .collapse-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-in-out;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -24,53 +48,143 @@
                     </div>
                 {% endif %}
 
-                <form method="post" class="space-y-8" aria-label="Create Exam Form">
+                <form method="post" class="space-y-6" aria-label="Create Exam Form">
                     {% csrf_token %}
-                    <div class="space-y-8">
-                        <!-- General Fields -->
-                        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                            {% for field in form %}
-                                {% if field.name != 'date' and field.name != 'start_time' and field.name != 'duration' %}
-                                    <div class="relative group">
-                                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
-                                        <div class="mt-1">
-                                            {{ field }}
-                                        </div>
-                                        {% if field.help_text %}
-                                            <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
-                                                {{ field.help_text }}
+                    <div class="space-y-6">
+                        <!-- General Information Section -->
+                        <div class="border-b border-gray-200 pb-4">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" class="collapse-toggle hidden" checked>
+                                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 transform transition-transform duration-200 collapse-toggle:checked:-rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                    General Information
+                                </h3>
+                            </label>
+                            <div class="collapse-content mt-4">
+                                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                    {% for field in form %}
+                                        {% if field.name != 'date' and field.name != 'start_time' and field.name != 'duration' %}
+                                            <div class="relative group">
+                                                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                                                    {{ field.label }}
+                                                    {% if field.field.required %}
+                                                        <span class="text-red-500">*</span>
+                                                    {% endif %}
+                                                </label>
+                                                <div class="relative">
+                                                    {% if field.name == 'title' %}
+                                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                                            </svg>
+                                                        </div>
+                                                        {{ field|add_class:"pl-10" }}
+                                                    {% else %}
+                                                        {{ field }}
+                                                    {% endif %}
+                                                </div>
+                                                {% if field.help_text %}
+                                                    <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                        {{ field.help_text }}
+                                                    </div>
+                                                {% endif %}
+                                                {% if field.errors %}
+                                                    <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
+                                                {% endif %}
                                             </div>
                                         {% endif %}
-                                        {% if field.errors %}
-                                            <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Scheduling Section -->
                         <div class="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Scheduling</h3>
-                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                                {% for field in form %}
-                                    {% if field.name == 'date' or field.name == 'start_time' or field.name == 'duration' %}
-                                        <div class="relative group">
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
-                                            <div class="mt-1">
-                                                {{ field }}
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" class="collapse-toggle hidden" checked>
+                                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 transform transition-transform duration-200 collapse-toggle:checked:-rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                    Scheduling
+                                </h3>
+                            </label>
+                            <div class="collapse-content mt-4">
+                                <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                                    <!-- Date Field -->
+                                    <div class="relative group">
+                                        <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                                            {{ form.date.label }}
+                                            <span class="text-red-500">*</span>
+                                        </label>
+                                        <div class="relative">
+                                            {{ form.date }}
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                </svg>
                                             </div>
-                                            {% if field.help_text %}
-                                                <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
-                                                    {{ field.help_text }}
-                                                </div>
-                                            {% endif %}
-                                            {% if field.errors %}
-                                                <p class="mt-2 text-sm text-red-600" role="alert">{{ field.errors.0 }}</p>
-                                            {% endif %}
                                         </div>
-                                    {% endif %}
-                                {% endfor %}
+                                        {% if form.date.help_text %}
+                                            <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                {{ form.date.help_text }}
+                                            </div>
+                                        {% endif %}
+                                        {% if form.date.errors %}
+                                            <p class="mt-2 text-sm text-red-600" role="alert">{{ form.date.errors.0 }}</p>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Start Time Field -->
+                                    <div class="relative group">
+                                        <label for="{{ form.start_time.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                                            {{ form.start_time.label }}
+                                            <span class="text-red-500">*</span>
+                                        </label>
+                                        <div class="relative">
+                                            {{ form.start_time }}
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        {% if form.start_time.help_text %}
+                                            <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                {{ form.start_time.help_text }}
+                                            </div>
+                                        {% endif %}
+                                        {% if form.start_time.errors %}
+                                            <p class="mt-2 text-sm text-red-600" role="alert">{{ form.start_time.errors.0 }}</p>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Duration Field -->
+                                    <div class="relative group">
+                                        <label for="{{ form.duration.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                                            {{ form.duration.label }}
+                                            <span class="text-red-500">*</span>
+                                        </label>
+                                        <div class="relative">
+                                            {{ form.duration }}
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        {% if form.duration.help_text %}
+                                            <div class="absolute hidden group-hover:block top-full mt-2 p-2 bg-gray-800 text-white text-xs rounded-md shadow-lg z-10">
+                                                {{ form.duration.help_text }}
+                                            </div>
+                                        {% endif %}
+                                        {% if form.duration.errors %}
+                                            <p class="mt-2 text-sm text-red-600" role="alert">{{ form.duration.errors.0 }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -93,14 +207,17 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-<style>
-    input, select, textarea {
-        transition: all 0.2s ease-in-out;
-    }
-    input:focus, select:focus, textarea:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-    }
-</style>
+<!-- JavaScript to enable/disable start_time based on date -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const dateInput = document.querySelector("#{{ form.date.id_for_label }}");
+        const timeInput = document.querySelector("#{{ form.start_time.id_for_label }}");
+        timeInput.disabled = !dateInput.value;
+
+        dateInput.addEventListener("change", function() {
+            timeInput.disabled = !this.value;
+        });
+    });
+</script>
+{% endblock %}

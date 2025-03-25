@@ -1,0 +1,21 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+#home{
+    background: url(../img/bg1.webp) no-repeat center;
+    background-size: cover;
+    background-blend-mode: overlay;
+    background-color: rgba(47, 47, 47, 0.7);
+}
+.no-scrollbar {
+    overflow-x: auto; /* Enable horizontal scrolling */
+    scrollbar-width: none; /* For Firefox */
+    -ms-overflow-style: none; /* For IE 10+ */
+  }
+  
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* For Chrome, Safari, and Edge */
+  }

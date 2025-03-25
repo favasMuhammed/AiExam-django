@@ -27,6 +27,7 @@ def dashboard(request):
     }
     return render(request, 'institute/dashboard.html', context)
 
+
 @login_required
 def add_teacher(request):
     if not request.user.is_institute:

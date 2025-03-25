@@ -16,3 +16,11 @@ def get_ids(queryset):
 def get_item(dictionary, key):
     """Retrieve a value from a dictionary by key."""
     return dictionary.get(key, '') if dictionary else ''
+
+
+@register.filter
+def split(value, delimiter):
+    """
+    Split a string by the given delimiter and return a list.
+    """
+    return value.split(delimiter)
