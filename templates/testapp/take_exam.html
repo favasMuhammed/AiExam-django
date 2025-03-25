@@ -75,262 +75,203 @@
         </div>
     </div>
 </div>
-<script src="{% static 'js/debounce.js' %}"></script>
+
+<script src="{% static 'js/script.js' %}"></script>
+
 <script>
-// Enhanced Debounce Function (if not already in debounce.js)
-const debounce = (func, wait, immediate = false) => {
-    let timeout;
-    return function (...args) {
-        const context = this;
-        const later = () => {
-            timeout = null;
-            if (!immediate) func.apply(context, args);
+    // Enhanced Debounce Function (if not already in debounce.js)
+    const debounce = (func, wait, immediate = false) => {
+        let timeout;
+        return function (...args) {
+            const context = this;
+            const later = () => {
+                timeout = null;
+                if (!immediate) func.apply(context, args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func.apply(context, args);
         };
-        const callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) func.apply(context, args);
-    };
-};
-
-// Centralized malpractice logging
-async function logMalpractice(type, message) {
-    try {
-        const response = await fetch('/student/log_malpractice/', {
-            method: 'POST',
-            headers: { 
-                'X-CSRFToken': '{{ csrf_token }}', 
-                'Content-Type': 'application/json' 
-            },
-            body: JSON.stringify({ 
-                exam_id: {{ exam.id }}, 
-                attempt_uuid: '{{ attempt_uuid }}', 
-                type: type,
-                message: message,
-                timestamp: new Date().toISOString()
-            })
-        });
-        if (!response.ok) throw new Error('Failed to log malpractice');
-    } catch (err) {
-        console.error(`Malpractice log failed (${type}):`, err);
-    }
-}
-
-// Anti-cheating measures with real-time tab switch warning
-function enforceSecurity() {
-    let blurCount = localStorage.getItem('blurCount') ? parseInt(localStorage.getItem('blurCount')) : 0;
-    const maxBlurAllowed = 3;
-    let warningShown = localStorage.getItem('warningShown') === 'true'; // Track if warning has been shown
-
-    const handleBlur = () => {
-        if (warningShown) return; // Skip if warning has already been shown
-
-        blurCount++;
-        localStorage.setItem('blurCount', blurCount);
-        if (blurCount > maxBlurAllowed && !warningShown) {
-            logMalpractice('tab_switch', `Tab switch #${blurCount} (max allowed: ${maxBlurAllowed})`);
-            const warningMessage = `Warning: Excessive tab switching detected (${blurCount} switches). This has been logged.`;
-            
-            // Temporarily remove the blur event listener to prevent infinite loop
-            window.removeEventListener('blur', handleBlur);
-            alert(warningMessage);
-            // Re-attach the blur event listener after alert is dismissed
-            window.addEventListener('blur', handleBlur);
-
-            warningShown = true;
-            localStorage.setItem('warningShown', 'true');
-        }
     };
 
-    document.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        logMalpractice('context_menu', 'Right-click attempted');
-    });
-
-    document.addEventListener('keydown', e => {
-        if (e.ctrlKey && ['c', 'v', 'x', 'u', 'p', 's'].includes(e.key.toLowerCase())) {
-            e.preventDefault();
-            logMalpractice('shortcut', `Ctrl+${e.key} attempted`);
-        }
-        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
-            e.preventDefault();
-            logMalpractice('devtools', 'Attempted to open developer tools');
-        }
-    });
-
-    window.addEventListener('blur', handleBlur);
-
-    window.addEventListener('beforeunload', (e) => {
-        const submitBtn = document.getElementById('submit-btn');
-        if (!submitBtn.disabled && !submitBtn.dataset.submitting) {
-            e.preventDefault();
-            return 'Changes you made may not be saved. Are you sure you want to leave?';
-        } else {
-            // Reset blurCount and warningShown when the exam is submitted
-            localStorage.removeItem('blurCount');
-            localStorage.removeItem('warningShown');
-        }
-    });
-}
-
-// Full-screen management
-function handleFullscreen() {
-    const fullscreenBtn = document.getElementById('fullscreen-btn');
-    if (!document.fullscreenEnabled) {
-        fullscreenBtn.disabled = true;
-        fullscreenBtn.textContent = 'Fullscreen Not Supported';
-        return;
-    }
-
-    fullscreenBtn.addEventListener('click', () => {
-        if (document.fullscreenElement) {
-            document.exitFullscreen();
-        } else {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.error('Fullscreen failed:', err);
-                logMalpractice('fullscreen_error', 'Failed to enter fullscreen');
+    async function logMalpractice(type, message) {
+        try {
+            const response = await fetch('/student/log_malpractice/', {
+                method: 'POST',
+                headers: { 
+                    'X-CSRFToken': '{{ csrf_token }}', 
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    exam_id: {{ exam.id }}, 
+                    attempt_uuid: '{{ attempt_uuid }}', 
+                    type: type,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                })
             });
+            if (!response.ok) throw new Error('Failed to log malpractice');
+        } catch (err) {
+            console.error(`Malpractice log failed (${type}):`, err);
         }
-    });
+    }
 
-    document.addEventListener('fullscreenchange', () => {
-        fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Full Screen';
-        if (!document.fullscreenElement) {
-            logMalpractice('fullscreen_exit', 'Exited fullscreen mode');
-        }
-    });
-}
+    // Anti-cheating measures with real-time tab switch warning
+    function enforceSecurity() {
+        let blurCount = localStorage.getItem('blurCount') ? parseInt(localStorage.getItem('blurCount')) : 0;
+        const maxBlurAllowed = 3;
+        let warningShown = localStorage.getItem('warningShown') === 'true'; // Track if warning has been shown
 
-// Auto-save with retry, local storage fallback, and improved notifications
-function setupAutoSave() {
-    const formInputs = document.querySelectorAll('textarea');
-    const savePromises = new Map();
-    const maxRetries = 3; // Number of retries before giving up
-    const retryDelay = 5000; // Delay between retries (5 seconds)
-    let failedAttempts = 0; // Track consecutive failed attempts
-    let notificationShown = false; // Track if notification is already shown
+        const handleBlur = () => {
+            if (warningShown) return; // Skip if warning has already been shown
 
-    // Function to show a non-blocking notification
-    function showNotification(message, type = 'error') {
-        if (notificationShown) return; // Avoid spamming notifications
-        notificationShown = true;
+            blurCount++;
+            localStorage.setItem('blurCount', blurCount);
+            if (blurCount > maxBlurAllowed && !warningShown) {
+                logMalpractice('tab_switch', `Tab switch #${blurCount} (max allowed: ${maxBlurAllowed})`);
+                const warningMessage = `Warning: Excessive tab switching detected (${blurCount} switches). This has been logged.`;
+                
+                // Temporarily remove the blur event listener to prevent infinite loop
+                window.removeEventListener('blur', handleBlur);
+                alert(warningMessage);
+                // Re-attach the blur event listener after alert is dismissed
+                window.addEventListener('blur', handleBlur);
 
-        const notificationDiv = document.createElement('div');
-        notificationDiv.id = 'auto-save-notification';
-        notificationDiv.className = `fixed top-0 left-0 w-full ${type === 'error' ? 'bg-yellow-600' : 'bg-green-600'} text-white p-4 text-center z-50`;
-        notificationDiv.textContent = message;
-        document.body.appendChild(notificationDiv);
-
-        // Allow the user to dismiss the notification
-        const dismissButton = document.createElement('button');
-        dismissButton.textContent = 'Dismiss';
-        dismissButton.className = `ml-4 ${type === 'error' ? 'bg-yellow-800 hover:bg-yellow-900' : 'bg-green-800 hover:bg-green-900'} text-white px-2 py-1 rounded`;
-        dismissButton.onclick = () => {
-            notificationDiv.remove();
-            notificationShown = false;
+                warningShown = true;
+                localStorage.setItem('warningShown', 'true');
+            }
         };
-        notificationDiv.appendChild(dismissButton);
-    }
 
-    // Function to save answers to localStorage
-    function saveToLocalStorage() {
-        const answerData = {};
-        formInputs.forEach(input => {
-            const questionId = input.id.replace('answer-', '');
-            answerData[`answer_${questionId}`] = input.value;
+        document.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            logMalpractice('context_menu', 'Right-click attempted');
         });
-        localStorage.setItem(`exam_${ {{ exam.id }} }_answers`, JSON.stringify(answerData));
+
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey && ['c', 'v', 'x', 'u', 'p', 's'].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+                logMalpractice('shortcut', `Ctrl+${e.key} attempted`);
+            }
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+                e.preventDefault();
+                logMalpractice('devtools', 'Attempted to open developer tools');
+            }
+        });
+
+        window.addEventListener('blur', handleBlur);
+
+        window.addEventListener('beforeunload', (e) => {
+            const submitBtn = document.getElementById('submit-btn');
+            if (!submitBtn.disabled && !submitBtn.dataset.submitting) {
+                e.preventDefault();
+                return 'Changes you made may not be saved. Are you sure you want to leave?';
+            } else {
+                // Reset blurCount and warningShown when the exam is submitted
+                localStorage.removeItem('blurCount');
+                localStorage.removeItem('warningShown');
+            }
+        });
     }
 
-    // Function to load answers from localStorage
-    function loadFromLocalStorage() {
-        const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
-        if (savedData) {
-            const answerData = JSON.parse(savedData);
+    // Full-screen management
+    function handleFullscreen() {
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        if (!document.fullscreenEnabled) {
+            fullscreenBtn.disabled = true;
+            fullscreenBtn.textContent = 'Fullscreen Not Supported';
+            return;
+        }
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error('Fullscreen failed:', err);
+                    logMalpractice('fullscreen_error', 'Failed to enter fullscreen');
+                });
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Full Screen';
+            if (!document.fullscreenElement) {
+                logMalpractice('fullscreen_exit', 'Exited fullscreen mode');
+            }
+        });
+    }
+
+    // Auto-save with retry, local storage fallback, and improved notifications
+    function setupAutoSave() {
+        const formInputs = document.querySelectorAll('textarea');
+        const savePromises = new Map();
+        const maxRetries = 3; // Number of retries before giving up
+        const retryDelay = 5000; // Delay between retries (5 seconds)
+        let failedAttempts = 0; // Track consecutive failed attempts
+        let notificationShown = false; // Track if notification is already shown
+
+        // Function to show a non-blocking notification
+        function showNotification(message, type = 'error') {
+            if (notificationShown) return; // Avoid spamming notifications
+            notificationShown = true;
+
+            const notificationDiv = document.createElement('div');
+            notificationDiv.id = 'auto-save-notification';
+            notificationDiv.className = `fixed top-0 left-0 w-full ${type === 'error' ? 'bg-yellow-600' : 'bg-green-600'} text-white p-4 text-center z-50`;
+            notificationDiv.textContent = message;
+            document.body.appendChild(notificationDiv);
+
+            // Allow the user to dismiss the notification
+            const dismissButton = document.createElement('button');
+            dismissButton.textContent = 'Dismiss';
+            dismissButton.className = `ml-4 ${type === 'error' ? 'bg-yellow-800 hover:bg-yellow-900' : 'bg-green-800 hover:bg-green-900'} text-white px-2 py-1 rounded`;
+            dismissButton.onclick = () => {
+                notificationDiv.remove();
+                notificationShown = false;
+            };
+            notificationDiv.appendChild(dismissButton);
+        }
+
+        // Function to save answers to localStorage
+        function saveToLocalStorage() {
+            const answerData = {};
             formInputs.forEach(input => {
                 const questionId = input.id.replace('answer-', '');
-                const answerKey = `answer_${questionId}`;
-                if (answerData[answerKey]) {
-                    input.value = answerData[answerKey];
-                }
+                answerData[`answer_${questionId}`] = input.value;
             });
+            localStorage.setItem(`exam_${ {{ exam.id }} }_answers`, JSON.stringify(answerData));
         }
-    }
 
-    // Function to sync localStorage with server
-    async function syncLocalStorage() {
-        const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
-        if (!savedData) return;
-
-        const answerData = JSON.parse(savedData);
-        for (const [answerKey, answerText] of Object.entries(answerData)) {
-            const questionId = answerKey.replace('answer_', '');
-            const formData = new FormData();
-            formData.append('question_id', questionId);
-            formData.append('answer_text', answerText);
-            formData.append('attempt_uuid', '{{ attempt_uuid }}');
-            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-
-            let attempt = 0;
-            while (attempt <= maxRetries) {
-                try {
-                    const response = await fetch("{% url 'student:save_answer' %}", {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    if (!data.success) throw new Error(data.error || 'Failed to save answers');
-                    failedAttempts = 0; // Reset failed attempts
-                    break; // Success, exit the loop
-                } catch (err) {
-                    attempt++;
-                    if (attempt > maxRetries) {
-                        console.error('Sync failed for question', questionId, err);
-                        throw err; // Let the caller handle the error
+        // Function to load answers from localStorage
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
+            if (savedData) {
+                const answerData = JSON.parse(savedData);
+                formInputs.forEach(input => {
+                    const questionId = input.id.replace('answer-', '');
+                    const answerKey = `answer_${questionId}`;
+                    if (answerData[answerKey]) {
+                        input.value = answerData[answerKey];
                     }
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                }
+                });
             }
         }
 
-        // Clear localStorage after successful sync
-        localStorage.removeItem(`exam_${ {{ exam.id }} }_answers`);
-        if (notificationShown) {
-            const notificationDiv = document.getElementById('auto-save-notification');
-            if (notificationDiv) {
-                notificationDiv.textContent = 'Auto-save successful after network recovery.';
-                notificationDiv.className = 'fixed top-0 left-0 w-full bg-green-600 text-white p-4 text-center z-50';
-                setTimeout(() => {
-                    notificationDiv.remove();
-                    notificationShown = false;
-                }, 3000);
-            }
-        }
-    }
+        // Function to sync localStorage with server
+        async function syncLocalStorage() {
+            const savedData = localStorage.getItem(`exam_${ {{ exam.id }} }_answers`);
+            if (!savedData) return;
 
-    // Load any unsaved answers from localStorage on page load
-    loadFromLocalStorage();
+            const answerData = JSON.parse(savedData);
+            for (const [answerKey, answerText] of Object.entries(answerData)) {
+                const questionId = answerKey.replace('answer_', '');
+                const formData = new FormData();
+                formData.append('question_id', questionId);
+                formData.append('answer_text', answerText);
+                formData.append('attempt_uuid', '{{ attempt_uuid }}');
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
 
-    formInputs.forEach(input => {
-        const questionId = input.id.replace('answer-', '');
-        const savedIndicator = document.getElementById(`saved-${questionId}`);
-        const savingIndicator = document.getElementById(`saving-${questionId}`);
-
-        input.addEventListener('input', debounce(async () => {
-            const formData = new FormData();
-            formData.append('question_id', input.name.replace('question_', ''));
-            formData.append('answer_text', input.value);
-            formData.append('attempt_uuid', '{{ attempt_uuid }}');
-            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-
-            savingIndicator.hidden = false;
-            savedIndicator.hidden = true;
-
-            const saveKey = `question_${questionId}`;
-            if (savePromises.has(saveKey)) await savePromises.get(saveKey);
-
-            const savePromise = (async () => {
                 let attempt = 0;
                 while (attempt <= maxRetries) {
                     try {
@@ -342,135 +283,195 @@ function setupAutoSave() {
                         if (!response.ok) throw new Error('Network response was not ok');
                         if (!data.success) throw new Error(data.error || 'Failed to save answers');
                         failedAttempts = 0; // Reset failed attempts
-                        savedIndicator.hidden = false;
-                        setTimeout(() => savedIndicator.hidden = true, 2000);
-                        updateProgress();
-                        return;
+                        break; // Success, exit the loop
                     } catch (err) {
                         attempt++;
-                        failedAttempts++;
                         if (attempt > maxRetries) {
-                            console.error('Auto-save failed for question', questionId, err);
-                            saveToLocalStorage(); // Save to localStorage as a fallback
-                            showNotification('Auto-save failed due to a network error. Answers are saved locally and will sync when the network is restored.');
-                            if (failedAttempts >= 3) { // Log malpractice after 3 consecutive failures
-                                logMalpractice('save_error', `Auto-save failed after ${failedAttempts} attempts: ${err.message}`);
-                            }
-                            return;
+                            console.error('Sync failed for question', questionId, err);
+                            throw err; // Let the caller handle the error
                         }
                         await new Promise(resolve => setTimeout(resolve, retryDelay));
                     }
                 }
-            })()
-            .finally(() => {
-                savingIndicator.hidden = true;
-                savePromises.delete(saveKey);
-            });
+            }
 
-            savePromises.set(saveKey, savePromise);
-        }, 500)); // Reduced delay for better responsiveness
-    });
-
-    // Periodically sync localStorage with server
-    const syncInterval = setInterval(async () => {
-        if (localStorage.getItem(`exam_${ {{ exam.id }} }_answers`)) {
-            try {
-                await syncLocalStorage();
-            } catch (err) {
-                console.error('Periodic sync failed:', err);
+            // Clear localStorage after successful sync
+            localStorage.removeItem(`exam_${ {{ exam.id }} }_answers`);
+            if (notificationShown) {
+                const notificationDiv = document.getElementById('auto-save-notification');
+                if (notificationDiv) {
+                    notificationDiv.textContent = 'Auto-save successful after network recovery.';
+                    notificationDiv.className = 'fixed top-0 left-0 w-full bg-green-600 text-white p-4 text-center z-50';
+                    setTimeout(() => {
+                        notificationDiv.remove();
+                        notificationShown = false;
+                    }, 3000);
+                }
             }
         }
-    }, 60000); // Try to sync every 60 seconds
 
-    // Clean up on exam submission
-    window.addEventListener('beforeunload', () => {
-        clearInterval(syncInterval);
-    });
-}
+        // Load any unsaved answers from localStorage on page load
+        loadFromLocalStorage();
 
-// Update progress dynamically
-function updateProgress() {
-    const answeredCount = Array.from(document.querySelectorAll('textarea')).filter(textarea => textarea.value.trim() !== '').length;
-    const totalQuestions = {{ questions|length }};
-    const progressText = document.getElementById('progress-text');
-    const progressBar = document.getElementById('progress-bar');
-    const percentage = totalQuestions ? (answeredCount / totalQuestions * 100) : 0;
+        formInputs.forEach(input => {
+            const questionId = input.id.replace('answer-', '');
+            const savedIndicator = document.getElementById(`saved-${questionId}`);
+            const savingIndicator = document.getElementById(`saving-${questionId}`);
 
-    progressText.querySelector('[data-testid="progress-count"]').textContent = answeredCount;
-    progressText.querySelector('[data-testid="total-questions"]').textContent = totalQuestions;
-    progressBar.style.width = `${percentage}%`;
-    progressBar.setAttribute('aria-valuenow', percentage.toFixed(2));
-}
+            input.addEventListener('input', debounce(async () => {
+                const formData = new FormData();
+                formData.append('question_id', input.name.replace('question_', ''));
+                formData.append('answer_text', input.value);
+                formData.append('attempt_uuid', '{{ attempt_uuid }}');
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
 
-// Smooth form submission
-function handleSubmit() {
-    const examForm = document.getElementById('exam-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const formContainer = examForm.parentElement;
+                savingIndicator.hidden = false;
+                savedIndicator.hidden = true;
 
-    examForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+                const saveKey = `question_${questionId}`;
+                if (savePromises.has(saveKey)) await savePromises.get(saveKey);
 
-        if (!confirm('Are you sure you want to submit your exam? This action cannot be undone.')) {
+                const savePromise = (async () => {
+                    let attempt = 0;
+                    while (attempt <= maxRetries) {
+                        try {
+                            const response = await fetch("{% url 'student:save_answer' %}", {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error('Network response was not ok');
+                            if (!data.success) throw new Error(data.error || 'Failed to save answers');
+                            failedAttempts = 0; // Reset failed attempts
+                            savedIndicator.hidden = false;
+                            setTimeout(() => savedIndicator.hidden = true, 2000);
+                            updateProgress();
+                            return;
+                        } catch (err) {
+                            attempt++;
+                            failedAttempts++;
+                            if (attempt > maxRetries) {
+                                console.error('Auto-save failed for question', questionId, err);
+                                saveToLocalStorage(); // Save to localStorage as a fallback
+                                showNotification('Auto-save failed due to a network error. Answers are saved locally and will sync when the network is restored.');
+                                if (failedAttempts >= 3) { // Log malpractice after 3 consecutive failures
+                                    logMalpractice('save_error', `Auto-save failed after ${failedAttempts} attempts: ${err.message}`);
+                                }
+                                return;
+                            }
+                            await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        }
+                    }
+                })()
+                .finally(() => {
+                    savingIndicator.hidden = true;
+                    savePromises.delete(saveKey);
+                });
+
+                savePromises.set(saveKey, savePromise);
+            }, 500)); // Reduced delay for better responsiveness
+        });
+
+        // Periodically sync localStorage with server
+        const syncInterval = setInterval(async () => {
+            if (localStorage.getItem(`exam_${ {{ exam.id }} }_answers`)) {
+                try {
+                    await syncLocalStorage();
+                } catch (err) {
+                    console.error('Periodic sync failed:', err);
+                }
+            }
+        }, 60000); // Try to sync every 60 seconds
+
+        // Clean up on exam submission
+        window.addEventListener('beforeunload', () => {
+            clearInterval(syncInterval);
+        });
+    }
+
+    // Update progress dynamically
+    function updateProgress() {
+        const answeredCount = Array.from(document.querySelectorAll('textarea')).filter(textarea => textarea.value.trim() !== '').length;
+        const totalQuestions = {{ questions|length }};
+        const progressText = document.getElementById('progress-text');
+        const progressBar = document.getElementById('progress-bar');
+        const percentage = totalQuestions ? (answeredCount / totalQuestions * 100) : 0;
+
+        progressText.querySelector('[data-testid="progress-count"]').textContent = answeredCount;
+        progressText.querySelector('[data-testid="total-questions"]').textContent = totalQuestions;
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage.toFixed(2));
+    }
+
+    // Smooth form submission
+    function handleSubmit() {
+        const examForm = document.getElementById('exam-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const formContainer = examForm.parentElement;
+
+        examForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!confirm('Are you sure you want to submit your exam? This action cannot be undone.')) {
+                return;
+            }
+
+            // Add loading state
+            formContainer.classList.add('opacity-50', 'pointer-events-none');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            submitBtn.dataset.submitting = 'true';
+
+            const timeRemaining = document.getElementById('timer-display')?.textContent || '0:00';
+            document.getElementById('time-expired').value = (parseInt(timeRemaining.split(':').reduce((acc, t) => 60 * acc + +t, 0)) <= 0).toString();
+
+            const savePromises = Array.from(document.querySelectorAll('textarea')).map(input => {
+                const event = new Event('input');
+                input.dispatchEvent(event);
+                return Promise.resolve();
+            });
+            await Promise.all(savePromises);
+
+            examForm.submit();
+        });
+    }
+
+    // Timer enforcement with submission
+    function enforceTimer() {
+        const timerDisplay = document.getElementById('timer-display');
+        if (!timerDisplay) {
+            console.error('Timer display not found. Automatic submission disabled.');
             return;
         }
 
-        // Add loading state
-        formContainer.classList.add('opacity-50', 'pointer-events-none');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting...';
-        submitBtn.dataset.submitting = 'true';
-
-        const timeRemaining = document.getElementById('timer-display')?.textContent || '0:00';
-        document.getElementById('time-expired').value = (parseInt(timeRemaining.split(':').reduce((acc, t) => 60 * acc + +t, 0)) <= 0).toString();
-
-        const savePromises = Array.from(document.querySelectorAll('textarea')).map(input => {
-            const event = new Event('input');
-            input.dispatchEvent(event);
-            return Promise.resolve();
-        });
-        await Promise.all(savePromises);
-
-        examForm.submit();
-    });
-}
-
-// Timer enforcement with submission
-function enforceTimer() {
-    const timerDisplay = document.getElementById('timer-display');
-    if (!timerDisplay) {
-        console.error('Timer display not found. Automatic submission disabled.');
-        return;
+        const interval = setInterval(async () => {
+            const timeParts = timerDisplay.textContent.split(':');
+            const totalSeconds = timeParts.reduce((acc, t) => 60 * acc + +t, 0);
+            if (totalSeconds <= 0) {
+                document.getElementById('time-expired').value = 'true';
+                const submitBtn = document.getElementById('submit-btn');
+                if (!submitBtn.disabled) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Submitting...';
+                    submitBtn.dataset.submitting = 'true';
+                    await Promise.all(Array.from(document.querySelectorAll('textarea')).map(input => {
+                        const event = new Event('input');
+                        input.dispatchEvent(event);
+                        return Promise.resolve();
+                    }));
+                    document.getElementById('exam-form').submit();
+                }
+                clearInterval(interval);
+            }
+        }, 1000);
     }
 
-    const interval = setInterval(async () => {
-        const timeParts = timerDisplay.textContent.split(':');
-        const totalSeconds = timeParts.reduce((acc, t) => 60 * acc + +t, 0);
-        if (totalSeconds <= 0) {
-            document.getElementById('time-expired').value = 'true';
-            const submitBtn = document.getElementById('submit-btn');
-            if (!submitBtn.disabled) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Submitting...';
-                submitBtn.dataset.submitting = 'true';
-                await Promise.all(Array.from(document.querySelectorAll('textarea')).map(input => {
-                    const event = new Event('input');
-                    input.dispatchEvent(event);
-                    return Promise.resolve();
-                }));
-                document.getElementById('exam-form').submit();
-            }
-            clearInterval(interval);
-        }
-    }, 1000);
-}
-
-// Initialize on page load
-enforceSecurity();
-handleFullscreen();
-setupAutoSave();
-handleSubmit();
-enforceTimer();
-updateProgress();
+    // Initialize on page load
+    enforceSecurity();
+    handleFullscreen();
+    setupAutoSave();
+    handleSubmit();
+    enforceTimer();
+    updateProgress();
 </script>
 {% endblock %}
