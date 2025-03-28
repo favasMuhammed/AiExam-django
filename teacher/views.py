@@ -66,8 +66,8 @@ def dashboard(request):
     pending_grading = StudentAnswer.objects.filter(question__exam__created_by=request.user, score__isnull=True).count()
     recent_exams = exams.order_by('-created_at')[:5]
     
-    classes = Class.objects.filter(institution=institution)
-    
+    classes = teacher_profile.classes.all() 
+    subjects = teacher_profile.subjects.all()
     recent_exams_with_topics = [
         {'exam': exam, 'topics': [t.strip() for t in exam.topics.split(',')] if exam.topics else []}
         for exam in recent_exams
@@ -121,6 +121,7 @@ def dashboard(request):
         'recent_exams': recent_exams_with_topics,
         'exam_statistics': exam_statistics,
         'classes': classes,
+        'subjects': subjects,
         'form': form,
     }
     return render(request, 'testapp/teacher_dashboard.html', context)
@@ -212,7 +213,7 @@ def create_exam(request):
         return redirect('teacher:dashboard')
 
     form = ExamForm(request.POST or None, user=request.user)
-    classes = Class.objects.filter(institution=institution)
+    classes = teacher_profile.classes.all()
 
     if request.method == 'POST':
         if form.is_valid():

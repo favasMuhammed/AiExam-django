@@ -19,6 +19,7 @@ from django import forms
 from django.utils import timezone
 from datetime import datetime
 
+
 class ExamForm(forms.ModelForm):
     use_template = forms.BooleanField(
         required=False,
@@ -142,14 +143,14 @@ class ExamForm(forms.ModelForm):
             if teacher_profiles.exists():
                 teacher_profile = teacher_profiles.first()
                 institution = teacher_profile.institution
-                self.fields['subject'].queryset = Subject.objects.filter(institution=institution)
-                self.fields['classes'].queryset = Class.objects.filter(institution=institution)
+                self.fields['subject'].queryset = teacher_profile.subjects.all()
+                self.fields['classes'].queryset = teacher_profile.classes.all()
             else:
                 institution = Institution.objects.filter(manager__is_manager=True).first()
                 if institution:
                     teacher_profile = TeacherProfile.objects.create(user=user, institution=institution)
-                    self.fields['subject'].queryset = Subject.objects.filter(institution=institution)
-                    self.fields['classes'].queryset = Class.objects.filter(institution=institution)
+                    self.fields['subject'].queryset = teacher_profile.subjects.all()
+                    self.fields['classes'].queryset = teacher_profile.classes.all()
                 else:
                     self.fields['subject'].queryset = Subject.objects.none()
                     self.fields['classes'].queryset = Class.objects.none()
@@ -229,6 +230,7 @@ class ClassStudentForm(forms.Form):
                     self.fields['class_obj'].queryset = Class.objects.none()
                     self.fields['students'].queryset = User.objects.none()
                     return
+                
             institution = teacher_profile.institution
-            self.fields['class_obj'].queryset = Class.objects.filter(institution=institution)
+            self.fields['class_obj'].queryset = teacher_profile.classes.all()
             self.fields['students'].queryset = User.objects.filter(is_student=True)
