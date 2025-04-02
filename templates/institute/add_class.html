@@ -1,17 +1,26 @@
 {% extends 'testapp/base.html' %}
-
-{% block title %}Add Class{% endblock %}
-
+{% block title %}Add Class - AI Exam System{% endblock %}
 {% block content %}
-<div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-    <h2 class="text-2xl font-bold mb-6">Add New Class</h2>
-    <form method="post" class="space-y-4">
+<div class="max-w-md mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <h2 class="text-2xl font-bold mb-4">Add a New Class</h2>
+    <form method="post" class="space-y-6">
         {% csrf_token %}
         <div>
             <label for="name" class="block text-sm font-medium text-gray-700">Class Name</label>
-            <input type="text" name="name" id="name" class="mt-1 w-full p-2 border rounded-md" required>
+            <input type="text" name="name" id="name" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
         </div>
-        <button type="submit" class="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+        <div>
+            <label for="teachers" class="block text-sm font-medium text-gray-700">Assign Teachers</label>
+            <select name="teachers" id="teachers" multiple class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                {% for teacher in teachers %}
+                    <option value="{{ teacher.id }}">{{ teacher.email }} ({{ teacher.first_name }})</option>
+                {% empty %}
+                    <option disabled>No teachers available</option>
+                {% endfor %}
+            </select>
+            <p class="mt-1 text-xs text-gray-500">Hold Ctrl/Cmd to select multiple teachers</p>
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             Add Class
         </button>
     </form>

@@ -95,13 +95,37 @@ def add_class(request):
     if not request.user.is_institute:
         messages.error(request, "Access denied.")
         return redirect('institute:dashboard')
+    
     institution = Institution.objects.filter(manager__email=request.user.email).first()
+    if not institution:
+        messages.error(request, "No institution assigned.")
+        return redirect('institute:dashboard')
+
     if request.method == 'POST':
         name = request.POST.get('name')
-        Class.objects.create(name=name, institution=institution)
+        teacher_ids = request.POST.getlist('teachers')  # Get list of selected teacher IDs
+        
+        # Create the class
+        class_obj = Class.objects.create(name=name, institution=institution)
+        
+        # Assign selected teachers to the class
+        if teacher_ids:
+            teachers = User.objects.filter(id__in=teacher_ids, is_teacher=True)
+            class_obj.teachers.add(*teachers)
+        
         messages.success(request, f"Class '{name}' added successfully!")
         return redirect('institute:dashboard')
-    return render(request, 'institute/add_class.html', {'institution': institution})
+    
+    # Get all teachers in the institution for the form
+    teachers = User.objects.filter(
+        is_teacher=True,
+        teacher_profiles__institution=institution
+    ).distinct()
+    
+    return render(request, 'institute/add_class.html', {
+        'institution': institution,
+        'teachers': teachers
+    })
 
 @login_required
 def add_subject(request):

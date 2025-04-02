@@ -133,7 +133,7 @@ def manage_class_students(request, class_id=None):
         messages.error(request, "Access denied. Only teachers can manage classes.")
         return redirect('teacher:dashboard')
 
-    # Get or create a TeacherProfile (assuming one per institution or first available)
+    # Get or create a TeacherProfile
     teacher_profiles = request.user.teacher_profiles.all()
     if not teacher_profiles:
         institution = Institution.objects.filter(manager__is_manager=True).first()
@@ -143,12 +143,21 @@ def manage_class_students(request, class_id=None):
         teacher_profile = TeacherProfile.objects.create(user=request.user, institution=institution)
         logger.info(f"Created TeacherProfile for {request.user.email}")
     else:
-        # Use the first profile (adjust logic if multiple profiles are meaningful)
         teacher_profile = teacher_profiles[0]
 
+    # Handle class retrieval or creation
     if class_id:
-        class_obj = get_object_or_404(Class, id=class_id, teachers=request.user)
+        # Check if the class exists and the teacher is assigned to it
+        try:
+            class_obj = Class.objects.get(id=class_id)
+            if not class_obj.teachers.filter(id=request.user.id).exists():
+                messages.error(request, f"You are not assigned to the class with ID {class_id}.")
+                return redirect('teacher:dashboard')
+        except Class.DoesNotExist:
+            messages.error(request, f"Class with ID {class_id} does not exist.")
+            return redirect('teacher:dashboard')
     else:
+        # Create a new class if class_id is not provided
         class_obj = Class.objects.create(
             name=f"Class by {request.user.email} - {timezone.now().strftime('%Y%m%d')}",
             institution=teacher_profile.institution
@@ -157,6 +166,7 @@ def manage_class_students(request, class_id=None):
         messages.success(request, f"Created new class: {class_obj.name}")
         logger.info(f"Created class {class_obj.name} for {request.user.email}")
 
+    # Get students not already in the class and current students in the class
     students = User.objects.filter(is_student=True).exclude(student_profile__classes=class_obj)
     class_students = User.objects.filter(student_profile__classes=class_obj)
 
